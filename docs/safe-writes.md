@@ -37,8 +37,38 @@ skickar en enda ändring och läser tillbaka resultatet.
 Den uppdaterade Dockerfilen installerar Firestore-stödet. Behåll nuvarande
 OAuth-inställningar, `GOOGLE_ADS_MCP_BASE_URL`, port och containerkommando.
 
+### Flera kundkonton via MCC
+
+För en gemensam gräns för kundkontona under ett MCC kan du använda
+`GOOGLE_ADS_MCP_WRITE_MANAGERS` i stället för att lista varje kundkonto.
+Exemplet använder ett **fiktivt MCC-nummer**, som måste ersättas med det riktiga:
+
+```json
+{"2222222222":{"currency":"SEK","max_daily_budget_micros":1000000000,"allow_activation":true}}
+```
+
+Sätt samtidigt `GOOGLE_ADS_MCP_WRITE_ACCOUNTS` till `{}` om ni inte behöver
+undantag per kund. I varje verktygsanrop anges kundkontot som `customer_id` och
+det konfigurerade MCC-numret som `login_customer_id`. Servern kontrollerar live
+att kunden är ett aktivt annonskonto under detta MCC, även via underförvaltare,
+både vid förhandsgranskning och före genomförande. Ett bortkopplat konto blockeras.
+Googles inloggade användare måste också ha åtkomst och rätt att göra ändringen.
+Läsverktygen begränsas inte av den här skrivpolicyn.
+
+En SEK-policy gäller bara SEK-konton. Konton med annan valuta blockeras tills de
+får en egen policy i `GOOGLE_ADS_MCP_WRITE_ACCOUNTS`. Explicita kundpolicyer har
+företräde framför MCC-policyn. Det går att konfigurera flera MCC:n, var och en
+med sin egen policy. Varje förslag och godkännande gäller fortfarande exakt ett
+kundkonto. Nya kampanjer skapas alltid pausade.
+
+`customers_list_accessible_customers` listar direkt åtkomliga konton; underkonton
+hittas genom att fråga `customer_client` på MCC-kontot. Se
+[Googles kontohierarki](https://developers.google.com/google-ads/api/docs/account-management/get-account-hierarchy).
+
+### Drift och separat godkännande
+
 1. Ställ först in `GOOGLE_ADS_MCP_WRITE_MODE` till `dry_run`.
-2. Lägg till `GOOGLE_ADS_MCP_WRITE_ACCOUNTS` som en JSON-sträng. Exemplet nedan
+2. Använd MCC-policyn ovan, eller lägg till `GOOGLE_ADS_MCP_WRITE_ACCOUNTS` som en JSON-sträng. Exemplet nedan
    använder ett fiktivt kundnummer. Ersätt med ditt kundnummer utan bindestreck,
    kontots valuta och din godkända budgetgräns. En krona är 1 000 000 micros:
 

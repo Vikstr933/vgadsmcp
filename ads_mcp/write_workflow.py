@@ -65,12 +65,9 @@ class WriteWorkflow:
 
     def preview(self, change: Change, owner: str):
         change.check_shape()
-        if change.customer_id not in self.policy.accounts:
-            raise WriteBlocked(
-                "This customer ID is not enabled in WRITE_ACCOUNTS."
-            )
+        self.policy.account_policy(change)
         gateway = self.gateway_factory(change.login_customer_id)
-        before = gateway.snapshot(change)
+        before = self.snapshot(gateway, change)
         self.policy.check(change, before)
         gateway.mutate(change, before, validate_only=True)
         review = {
@@ -104,6 +101,17 @@ class WriteWorkflow:
             "approval_url": f"{self.policy.base_url}/approvals/{plan['id']}",
             **review,
         }
+
+    def snapshot(self, gateway, change):
+        scope = None
+        if self.policy.requires_manager_scope(change):
+            scope = gateway.manager_scope(
+                change.login_customer_id, change.customer_id
+            )
+        before = gateway.snapshot(change)
+        if scope is not None:
+            before["manager_scope"] = scope
+        return before
 
     def get_plan(self, plan_id, owner):
         plan = self.store.get(plan_id)
@@ -143,7 +151,7 @@ class WriteWorkflow:
         sent_write = False
         try:
             gateway = self.gateway_factory(change.login_customer_id)
-            current = gateway.snapshot(change)
+            current = self.snapshot(gateway, change)
             if current != plan["snapshot"]:
                 raise WriteBlocked(
                     "Campaign or budget changed since preview. Create and approve a new plan."
@@ -152,7 +160,7 @@ class WriteWorkflow:
             gateway.mutate(change, current, validate_only=True)
             # Review could expire or external changes could occur during validation.
             check_plan(plan, owner)
-            if gateway.snapshot(change) != current:
+            if self.snapshot(gateway, change) != current:
                 raise WriteBlocked(
                     "Account state changed during validation. Create a new plan."
                 )

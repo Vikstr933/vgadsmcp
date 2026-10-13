@@ -4,7 +4,7 @@ import hashlib
 import json
 import os
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 from urllib.parse import urlsplit
 
@@ -88,6 +88,7 @@ class WritePolicy:
     approval_secret: str
     project: str
     database: str
+    managers: dict[str, AccountPolicy] = field(default_factory=dict)
 
     @classmethod
     def load(cls):
@@ -96,26 +97,46 @@ class WritePolicy:
             raise WriteBlocked(
                 "WRITE_MODE must be dry_run or approval_required."
             )
-        raw = json.loads(os.getenv("GOOGLE_ADS_MCP_WRITE_ACCOUNTS", "{}"))
-        if not isinstance(raw, dict) or any(
-            not re.fullmatch(r"[0-9]{10}", key) for key in raw
-        ):
-            raise WriteBlocked(
-                "WRITE_ACCOUNTS must map 10-digit account IDs to policies."
-            )
-        accounts = {
-            key: AccountPolicy.model_validate(val) for key, val in raw.items()
-        }
+
+        def policies(variable):
+            raw = json.loads(os.getenv(variable, "{}"))
+            if not isinstance(raw, dict) or any(
+                not re.fullmatch(r"[0-9]{10}", key) for key in raw
+            ):
+                raise WriteBlocked(
+                    f"{variable} must map 10-digit IDs to policies."
+                )
+            return {
+                key: AccountPolicy.model_validate(val)
+                for key, val in raw.items()
+            }
+
         return cls(
             mode=mode,
-            accounts=accounts,
+            accounts=policies("GOOGLE_ADS_MCP_WRITE_ACCOUNTS"),
             base_url=os.getenv("GOOGLE_ADS_MCP_BASE_URL", "").rstrip("/"),
             approval_secret=os.getenv("GOOGLE_ADS_MCP_APPROVAL_SECRET", ""),
             project=os.getenv("GOOGLE_ADS_MCP_WRITE_FIRESTORE_PROJECT", ""),
             database=os.getenv(
                 "GOOGLE_ADS_MCP_WRITE_FIRESTORE_DATABASE", "(default)"
             ),
+            managers=policies("GOOGLE_ADS_MCP_WRITE_MANAGERS"),
         )
+
+    def account_policy(self, change):
+        # An explicit client policy overrides the MCC ceiling, never the reverse.
+        if change.customer_id in self.accounts:
+            return self.accounts[change.customer_id]
+        policy = self.managers.get(change.login_customer_id)
+        if policy is None:
+            raise WriteBlocked(
+                "Select an enabled account or provide an enabled MCC as login_customer_id."
+            )
+        return policy
+
+    def requires_manager_scope(self, change):
+        self.account_policy(change)
+        return change.customer_id not in self.accounts
 
     def require_writes(self):
         if self.mode != "approval_required":
@@ -143,11 +164,14 @@ class WritePolicy:
 
     def check(self, change: Change, snapshot: dict):
         change.check_shape()
-        account = self.accounts.get(change.customer_id)
-        if account is None:
-            raise WriteBlocked(
-                "This customer ID is not enabled in WRITE_ACCOUNTS."
-            )
+        account = self.account_policy(change)
+        if self.requires_manager_scope(change):
+            expected_scope = {
+                "manager_id": change.login_customer_id,
+                "customer_id": change.customer_id,
+            }
+            if snapshot.get("manager_scope") != expected_scope:
+                raise WriteBlocked("Live MCC membership has not been verified.")
         if snapshot["account"]["id"] != change.customer_id:
             raise WriteBlocked(
                 "Snapshot belongs to another Google Ads account."

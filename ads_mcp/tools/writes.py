@@ -37,7 +37,9 @@ def policy_status() -> dict:
     policy = WritePolicy.load()
     return {
         "mode": policy.mode,
-        "account_policies_configured": bool(policy.accounts),
+        "account_policies_configured": bool(policy.accounts or policy.managers),
+        "manager_policies_configured": bool(policy.managers),
+        "mcc_usage": "Use the selected client as customer_id and your configured MCC as login_customer_id. Membership and currency are checked live.",
         "persistent_store_configured": bool(policy.project),
         "approval_secret_configured": len(policy.approval_secret) >= 32,
         "creation_status": "PAUSED",

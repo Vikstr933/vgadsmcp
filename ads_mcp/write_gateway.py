@@ -76,6 +76,29 @@ class GoogleAdsWriteGateway:
         )
         return result
 
+    def manager_scope(self, manager_id, customer_id):
+        # The caller provides validated IDs from server policy/typed Change.
+        # customer_client includes all transitive descendants, not just level 1.
+        rows = self.rows(
+            manager_id,
+            "SELECT customer_client.id, customer_client.manager, "
+            "customer_client.level, customer_client.status FROM customer_client "
+            f"WHERE customer_client.id = {customer_id}",
+        )
+        if len(rows) != 1:
+            raise WriteBlocked("Customer is not linked to the configured MCC.")
+        client = rows[0].customer_client
+        if (
+            str(client.id) != customer_id
+            or client.manager
+            or client.level <= 0
+            or client.status.name != "ENABLED"
+        ):
+            raise WriteBlocked(
+                "Select an enabled advertising account under the MCC."
+            )
+        return {"manager_id": manager_id, "customer_id": customer_id}
+
     def operations(self, change: Change, snapshot: dict):
         # Never accept protobuf operations, field masks or status from the agent.
         change.check_shape()
