@@ -7,3 +7,5 @@ namespaces:
   customers: true
   search: true
   metadata: true
+  # Discovery is enabled; actual writes still require server policy + owner approval.
+  writes: true

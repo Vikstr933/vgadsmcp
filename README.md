@@ -1,5 +1,11 @@
 # Google Ads MCP Server
 
+This fork adds an opt-in, self-hosted write workflow. The default is **dry run**:
+Google validates requests but nothing is created or changed. New Search campaigns
+can only be created **PAUSED**. Every applied change needs separate human approval
+on an owner-only browser page; activation needs a new approval of its own.
+See [safe writes setup and limitations](docs/safe-writes.md) before enabling writes.
+
 This repo contains the source code for running an
 [MCP](https://modelcontextprotocol.io) server that interacts with the
 [Google Ads API](https://developers.google.com/google-ads/api).

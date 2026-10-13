@@ -37,3 +37,9 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 .nox/
+.venv/
+.build-tmp/
+.env
+.env.*
+!.env.example
+*.pem

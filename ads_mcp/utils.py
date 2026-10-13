@@ -44,8 +44,8 @@ logging.basicConfig(level=logging.INFO)
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
 # OAuth scope for the Google Ads API. Google Ads does not publish a separate
-# read-only scope; access is restricted to read methods by the tools this
-# server exposes (see ads_mcp/tools/).
+# read-only scope. Read tools remain unchanged; the optional write workflow
+# enforces dry-run policy and independent owner approval (see write_workflow.py).
 _ADS_SCOPE = "https://www.googleapis.com/auth/adwords"
 
 
