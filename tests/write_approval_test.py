@@ -90,6 +90,7 @@ class ApprovalTest(unittest.TestCase):
         response = self.client.get(self.path, headers=self.headers)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.headers["cache-control"], "no-store")
+        self.assertEqual(response.headers["referrer-policy"], "same-origin")
         self.assertEqual(response.headers["x-frame-options"], "DENY")
         self.assertNotIn(self.policy.approval_secret, response.text)
         self.assertEqual(
@@ -109,6 +110,7 @@ class ApprovalTest(unittest.TestCase):
     def test_cross_origin_missing_origin_csrf_and_confirmation_denied(self):
         attempts = [
             ({}, self.form()),
+            ({"Origin": "null"}, self.form()),
             ({"Origin": "https://evil.example"}, self.form()),
             (
                 {"Origin": self.policy.base_url},

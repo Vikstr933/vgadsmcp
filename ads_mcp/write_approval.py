@@ -23,7 +23,9 @@ from ads_mcp.write_store import FirestorePlanStore, check_plan
 
 HEADERS = {
     "Cache-Control": "no-store",
-    "Referrer-Policy": "no-referrer",
+    # no-referrer makes browsers send Origin: null for HTML form POSTs.
+    # Preserve same-origin submissions without leaking review URLs to other sites.
+    "Referrer-Policy": "same-origin",
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
     "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
