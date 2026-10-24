@@ -9,6 +9,14 @@ from ads_mcp.write_gateway import GoogleAdsWriteGateway
 
 
 def describe(change, before):
+    if change.action in (
+        "create_conversion",
+        "update_conversion",
+        "set_conversion_primary",
+    ):
+        from ads_mcp.conversion_writes import describe_conversion
+
+        return describe_conversion(change, before)
     currency = before["account"]["currency"]
     if change.action == "create_paused_search":
         return {
@@ -105,9 +113,7 @@ class WriteWorkflow:
     def snapshot(self, gateway, change):
         scope = None
         if self.policy.requires_manager_scope(change):
-            scope = gateway.manager_scope(
-                change.login_customer_id, change.customer_id
-            )
+            scope = gateway.manager_scope(change.login_customer_id, change.customer_id)
         before = gateway.snapshot(change)
         if scope is not None:
             before["manager_scope"] = scope
@@ -140,8 +146,7 @@ class WriteWorkflow:
                 "Open the approval URL and approve the exact proposal first."
             )
         review = {
-            key: plan[key]
-            for key in ("customer_id", "change", "snapshot", "review")
+            key: plan[key] for key in ("customer_id", "change", "snapshot", "review")
         }
         if digest(review) != plan["review_digest"]:
             raise WriteBlocked("Plan content changed; create a new preview.")
@@ -154,7 +159,7 @@ class WriteWorkflow:
             current = self.snapshot(gateway, change)
             if current != plan["snapshot"]:
                 raise WriteBlocked(
-                    "Campaign or budget changed since preview. Create and approve a new plan."
+                    "Account, campaign, budget or conversion settings changed since preview. Create and approve a new plan."
                 )
             self.policy.check(change, current)
             gateway.mutate(change, current, validate_only=True)

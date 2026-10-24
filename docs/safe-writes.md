@@ -154,6 +154,43 @@ TTL och välj loggretention i ditt eget projekt. Ingen telemetritjänst läggs t
 - Avinstallation: stäng av skrivning, stäm av lås, ta bort `writes`-namnrymden och
   hemlighetsreferensen. Radera journaldata först efter vald retention.
 
+## Konverteringsåtgärder i Google Ads
+
+Tre verktyg använder samma förhandsgranskning, separata webbläsargodkännande,
+kontolås och återläsning som kampanjändringarna:
+
+- `preview_create_conversion`: skapa en egen webbplatskonvertering (`WEBPAGE`).
+  Ange namn, kategori och räknesätt. Den skapas först efter godkännande.
+- `preview_update_conversion`: ändra uttryckligen angivna fält: namn, kategori,
+  räknesätt, klick-/visningsfönster och standardvärde med kontots valuta.
+- `preview_conversion_primary`: separat förslag för primär/sekundär status.
+
+Ange kundkontot som `customer_id` och det tillåtna förvaltarkontot som
+`login_customer_id`. Kontots tillhörighet och valuta kontrolleras vid körning.
+Gemensamma konverteringar ägda av ett MCC, GA4-importer, borttagning och ändring
+av konverteringstyp/status stöds inte. Befintliga åtgärder måste vara aktiverade
+och ägda av det valda kundkontot.
+
+Nya konverteringar blir **aktiverade men sekundära**. Google Ads har inget
+pausat läge för konverteringsåtgärder. Sekundära åtgärder kan ändå användas för
+budgivning via anpassade mål. Ändringar av befintliga åtgärder kan påverka
+rapportering och budgivning direkt. Granska därför före/efter och målens
+användning i godkännandesidan. Kampanjlistan visar hela kontots möjliga påverkan,
+inte en verifierad lista över kampanjer som använder just åtgärden.
+
+Förhandsgranskningen använder `validate_only`; `execute_approved_plan` skriver
+först efter ett separat mänskligt godkännande. Inställningarna läses sedan
+tillbaka. Taggar installeras inte och faktisk konverteringsmätning måste
+verifieras separat. Inga riktiga konverteringsåtgärder skapas av testsviten.
+
+Exempel till assistenten: ”Förhandsgranska en webbplatskonvertering för
+kontaktformulär i kundkonto [riktigt kundnummer], via MCC 597-442-8531.
+Namn: Kontaktformulär. Kategori: SUBMIT_LEAD_FORM. Räknesätt: ONE_PER_CLICK.
+Visa förslaget för godkännande.”
+
+Källor: [Google Ads konverteringsåtgärder](https://developers.google.com/google-ads/api/docs/conversions/getting-started)
+och [primära, sekundära och anpassade mål](https://developers.google.com/google-ads/api/docs/conversions/goals/overview).
+
 ## Verifiering
 
 Lokala tester använder bara syntetiska data och mockade Google Ads-anrop. De

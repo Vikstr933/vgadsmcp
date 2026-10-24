@@ -9,6 +9,11 @@ from typing import Literal
 from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+from ads_mcp.conversion_writes import (
+    ConversionSettings,
+    check_conversion_shape,
+    check_conversion_policy,
+)
 
 
 class WriteBlocked(ValueError):
@@ -18,15 +23,24 @@ class WriteBlocked(ValueError):
 class Change(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
-    action: Literal["pause", "set_budget", "create_paused_search", "activate"]
+    action: Literal[
+        "pause",
+        "set_budget",
+        "create_paused_search",
+        "activate",
+        "create_conversion",
+        "update_conversion",
+        "set_conversion_primary",
+    ]
     customer_id: str
     login_customer_id: str | None = None
     campaign_id: str | None = None
+    conversion_action_id: str | None = None
+    conversion_settings: ConversionSettings | None = None
+    primary_for_goal: bool | None = None
     amount_micros: int | None = Field(default=None, gt=0, le=10**15)
     name: str | None = Field(default=None, min_length=1, max_length=100)
-    eu_political_advertising: Literal["contains", "does_not_contain"] | None = (
-        None
-    )
+    eu_political_advertising: Literal["contains", "does_not_contain"] | None = None
 
     @field_validator("customer_id", "login_customer_id")
     @classmethod
@@ -37,7 +51,7 @@ class Change(BaseModel):
             raise ValueError("Use a 10-digit Google Ads customer ID.")
         return value.replace("-", "")
 
-    @field_validator("campaign_id")
+    @field_validator("campaign_id", "conversion_action_id")
     @classmethod
     def object_id(cls, value):
         if value is not None and not re.fullmatch(r"[0-9]{1,20}", value):
@@ -47,13 +61,29 @@ class Change(BaseModel):
     @field_validator("name")
     @classmethod
     def printable_name(cls, value):
-        if value is not None and (
-            not value.strip() or any(ord(c) < 32 for c in value)
-        ):
+        if value is not None and (not value.strip() or any(ord(c) < 32 for c in value)):
             raise ValueError("Campaign name must be printable and non-empty.")
         return value
 
     def check_shape(self):
+        if self.action in (
+            "create_conversion",
+            "update_conversion",
+            "set_conversion_primary",
+        ):
+            check_conversion_shape(self)
+            return
+        if any(
+            v is not None
+            for v in (
+                self.conversion_action_id,
+                self.conversion_settings,
+                self.primary_for_goal,
+            )
+        ):
+            raise WriteBlocked(
+                "Conversion fields are not accepted for campaign changes."
+            )
         create = self.action == "create_paused_search"
         if create != (self.campaign_id is None):
             raise WriteBlocked(
@@ -94,22 +124,15 @@ class WritePolicy:
     def load(cls):
         mode = os.getenv("GOOGLE_ADS_MCP_WRITE_MODE", "dry_run")
         if mode not in ("dry_run", "approval_required"):
-            raise WriteBlocked(
-                "WRITE_MODE must be dry_run or approval_required."
-            )
+            raise WriteBlocked("WRITE_MODE must be dry_run or approval_required.")
 
         def policies(variable):
             raw = json.loads(os.getenv(variable, "{}"))
             if not isinstance(raw, dict) or any(
                 not re.fullmatch(r"[0-9]{10}", key) for key in raw
             ):
-                raise WriteBlocked(
-                    f"{variable} must map 10-digit IDs to policies."
-                )
-            return {
-                key: AccountPolicy.model_validate(val)
-                for key, val in raw.items()
-            }
+                raise WriteBlocked(f"{variable} must map 10-digit IDs to policies.")
+            return {key: AccountPolicy.model_validate(val) for key, val in raw.items()}
 
         return cls(
             mode=mode,
@@ -117,9 +140,7 @@ class WritePolicy:
             base_url=os.getenv("GOOGLE_ADS_MCP_BASE_URL", "").rstrip("/"),
             approval_secret=os.getenv("GOOGLE_ADS_MCP_APPROVAL_SECRET", ""),
             project=os.getenv("GOOGLE_ADS_MCP_WRITE_FIRESTORE_PROJECT", ""),
-            database=os.getenv(
-                "GOOGLE_ADS_MCP_WRITE_FIRESTORE_DATABASE", "(default)"
-            ),
+            database=os.getenv("GOOGLE_ADS_MCP_WRITE_FIRESTORE_DATABASE", "(default)"),
             managers=policies("GOOGLE_ADS_MCP_WRITE_MANAGERS"),
         )
 
@@ -158,9 +179,7 @@ class WritePolicy:
                 "Approval requires an HTTPS BASE_URL with no path or credentials."
             )
         if not self.project:
-            raise WriteBlocked(
-                "Persistent Firestore storage is required for writes."
-            )
+            raise WriteBlocked("Persistent Firestore storage is required for writes.")
 
     def check(self, change: Change, snapshot: dict):
         change.check_shape()
@@ -173,22 +192,19 @@ class WritePolicy:
             if snapshot.get("manager_scope") != expected_scope:
                 raise WriteBlocked("Live MCC membership has not been verified.")
         if snapshot["account"]["id"] != change.customer_id:
-            raise WriteBlocked(
-                "Snapshot belongs to another Google Ads account."
-            )
+            raise WriteBlocked("Snapshot belongs to another Google Ads account.")
         if snapshot["account"]["currency"] != account.currency:
-            raise WriteBlocked(
-                "Account currency differs from the configured policy."
-            )
+            raise WriteBlocked("Account currency differs from the configured policy.")
+        if self.action_is_conversion(change):
+            check_conversion_policy(change, snapshot)
+            return
         if change.action == "activate" and not account.allow_activation:
             raise WriteBlocked("Activation is disabled for this account.")
         amount = change.amount_micros
         if change.action == "activate":
             amount = snapshot["campaign"]["amount_micros"]
         if amount is not None and amount > account.max_daily_budget_micros:
-            raise WriteBlocked(
-                "The proposed daily budget exceeds the account limit."
-            )
+            raise WriteBlocked("The proposed daily budget exceeds the account limit.")
         if change.action != "create_paused_search":
             campaign = snapshot["campaign"]
             if (
@@ -222,6 +238,14 @@ class WritePolicy:
                     "Shared budgets require manual review and are not writable here."
                 )
 
+    @staticmethod
+    def action_is_conversion(change):
+        return change.action in (
+            "create_conversion",
+            "update_conversion",
+            "set_conversion_primary",
+        )
+
 
 def digest(value: dict) -> str:
     return hashlib.sha256(
@@ -237,12 +261,7 @@ def principal() -> str:
 
     token = get_access_token()
     subject = (getattr(token, "claims", None) or {}).get("sub")
-    if (
-        not token
-        or not token.token
-        or not isinstance(subject, str)
-        or not subject
-    ):
+    if not token or not token.token or not isinstance(subject, str) or not subject:
         raise WriteBlocked(
             "Write planning requires a verified Google OAuth user with a subject claim."
         )

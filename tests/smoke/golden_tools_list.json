@@ -365,6 +365,220 @@
         "idempotentHint": false,
         "readOnlyHint": false
       },
+      "description": "Validate a SEPARATE primary/secondary change for a native WEBPAGE conversion. Can affect reporting and Smart Bidding immediately across the client account; review goals first. Secondary actions can still be used by custom goals. No other setting changes. Requires a NEW human browser approval before execute_approved_plan.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "conversion_action_id": {
+            "type": "string"
+          },
+          "customer_id": {
+            "type": "string"
+          },
+          "login_customer_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "primary_for_goal": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "customer_id",
+          "conversion_action_id",
+          "primary_for_goal"
+        ],
+        "type": "object"
+      },
+      "name": "writes_preview_conversion_primary",
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Writes Preview Conversion Primary"
+    },
+    {
+      "_meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      },
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "readOnlyHint": false
+      },
+      "description": "Validate creating a native WEBPAGE conversion in the selected client account. Requires name/category/counting_type. Creates SECONDARY, with ENABLED status (conversions have no pause state), only after separate human browser approval. Does not deploy tags or import GA4 events. Shared MCC-owned conversions are blocked. No Google Ads changes during preview.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "customer_id": {
+            "type": "string"
+          },
+          "login_customer_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "settings": {
+            "additionalProperties": false,
+            "properties": {
+              "always_use_default_value": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              },
+              "category": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "DEFAULT",
+                      "PURCHASE",
+                      "SIGNUP",
+                      "SUBMIT_LEAD_FORM",
+                      "CONTACT",
+                      "PAGE_VIEW",
+                      "ADD_TO_CART",
+                      "BEGIN_CHECKOUT",
+                      "BOOK_APPOINTMENT",
+                      "REQUEST_QUOTE",
+                      "QUALIFIED_LEAD",
+                      "CONVERTED_LEAD"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              },
+              "click_through_lookback_window_days": {
+                "anyOf": [
+                  {
+                    "maximum": 90,
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              },
+              "counting_type": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "ONE_PER_CLICK",
+                      "MANY_PER_CLICK"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              },
+              "default_currency_code": {
+                "anyOf": [
+                  {
+                    "pattern": "^[A-Z]{3}$",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              },
+              "default_value": {
+                "anyOf": [
+                  {
+                    "maximum": 1000000000.0,
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              },
+              "name": {
+                "anyOf": [
+                  {
+                    "maxLength": 100,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              },
+              "view_through_lookback_window_days": {
+                "anyOf": [
+                  {
+                    "maximum": 30,
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              }
+            },
+            "type": "object"
+          }
+        },
+        "required": [
+          "customer_id",
+          "settings"
+        ],
+        "type": "object"
+      },
+      "name": "writes_preview_create_conversion",
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Writes Preview Create Conversion"
+    },
+    {
+      "_meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      },
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "readOnlyHint": false
+      },
       "description": "Dry-run an empty PAUSED Search campaign with a dedicated daily budget and manual CPC. No ads, keywords or targeting are created. Obtain the EU political-ad declaration from the owner. No Google Ads changes; there is no enabled creation option.",
       "inputSchema": {
         "additionalProperties": false,
@@ -457,6 +671,174 @@
         "type": "object"
       },
       "title": "Writes Preview Pause"
+    },
+    {
+      "_meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      },
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "readOnlyHint": false
+      },
+      "description": "Validate changing explicit settings on an enabled native WEBPAGE conversion owned by the selected client. Only non-null settings change; no deletion, type/status/primary changes, GA4 imports or shared MCC conversions. Reporting and bidding may be affected, including for custom goals. Return an exact before/after and independent human approval URL.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "conversion_action_id": {
+            "type": "string"
+          },
+          "customer_id": {
+            "type": "string"
+          },
+          "login_customer_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "settings": {
+            "additionalProperties": false,
+            "properties": {
+              "always_use_default_value": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              },
+              "category": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "DEFAULT",
+                      "PURCHASE",
+                      "SIGNUP",
+                      "SUBMIT_LEAD_FORM",
+                      "CONTACT",
+                      "PAGE_VIEW",
+                      "ADD_TO_CART",
+                      "BEGIN_CHECKOUT",
+                      "BOOK_APPOINTMENT",
+                      "REQUEST_QUOTE",
+                      "QUALIFIED_LEAD",
+                      "CONVERTED_LEAD"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              },
+              "click_through_lookback_window_days": {
+                "anyOf": [
+                  {
+                    "maximum": 90,
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              },
+              "counting_type": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "ONE_PER_CLICK",
+                      "MANY_PER_CLICK"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              },
+              "default_currency_code": {
+                "anyOf": [
+                  {
+                    "pattern": "^[A-Z]{3}$",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              },
+              "default_value": {
+                "anyOf": [
+                  {
+                    "maximum": 1000000000.0,
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              },
+              "name": {
+                "anyOf": [
+                  {
+                    "maxLength": 100,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              },
+              "view_through_lookback_window_days": {
+                "anyOf": [
+                  {
+                    "maximum": 30,
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              }
+            },
+            "type": "object"
+          }
+        },
+        "required": [
+          "customer_id",
+          "conversion_action_id",
+          "settings"
+        ],
+        "type": "object"
+      },
+      "name": "writes_preview_update_conversion",
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Writes Preview Update Conversion"
     }
   ]
 }

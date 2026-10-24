@@ -9,9 +9,7 @@ class GoogleAdsWriteGateway:
         self.service = utils.get_googleads_service(
             "GoogleAdsService", login_customer_id=login_customer_id
         )
-        self.client = utils.get_googleads_client(
-            login_customer_id=login_customer_id
-        )
+        self.client = utils.get_googleads_client(login_customer_id=login_customer_id)
 
     def rows(self, customer_id, query):
         return list(
@@ -22,6 +20,14 @@ class GoogleAdsWriteGateway:
 
     def snapshot(self, change: Change):
         change.check_shape()
+        if change.action in (
+            "create_conversion",
+            "update_conversion",
+            "set_conversion_primary",
+        ):
+            from ads_mcp.conversion_writes import snapshot_conversion
+
+            return snapshot_conversion(self, change)
         customer = self.rows(
             change.customer_id,
             "SELECT customer.id, customer.currency_code, customer.time_zone FROM customer",
@@ -94,28 +100,30 @@ class GoogleAdsWriteGateway:
             or client.level <= 0
             or client.status.name != "ENABLED"
         ):
-            raise WriteBlocked(
-                "Select an enabled advertising account under the MCC."
-            )
+            raise WriteBlocked("Select an enabled advertising account under the MCC.")
         return {"manager_id": manager_id, "customer_id": customer_id}
 
     def operations(self, change: Change, snapshot: dict):
         # Never accept protobuf operations, field masks or status from the agent.
         change.check_shape()
+        if change.action in (
+            "create_conversion",
+            "update_conversion",
+            "set_conversion_primary",
+        ):
+            from ads_mcp.conversion_writes import conversion_operations
+
+            return conversion_operations(self, change, snapshot)
         operation = self.client.get_type("MutateOperation")
         if change.action in ("pause", "activate"):
             update = operation.campaign_operation
             update.update.resource_name = snapshot["campaign"]["resource_name"]
-            update.update.status = (
-                "PAUSED" if change.action == "pause" else "ENABLED"
-            )
+            update.update.status = "PAUSED" if change.action == "pause" else "ENABLED"
             update.update_mask.paths.append("status")
             return [operation]
         if change.action == "set_budget":
             update = operation.campaign_budget_operation
-            update.update.resource_name = snapshot["campaign"][
-                "budget_resource"
-            ]
+            update.update.resource_name = snapshot["campaign"]["budget_resource"]
             update.update.amount_micros = change.amount_micros
             update.update_mask.paths.append("amount_micros")
             return [operation]
@@ -155,6 +163,14 @@ class GoogleAdsWriteGateway:
         return self.service.mutate(request=request, retry=None, timeout=30)
 
     def verify(self, change, before, response):
+        if change.action in (
+            "create_conversion",
+            "update_conversion",
+            "set_conversion_primary",
+        ):
+            from ads_mcp.conversion_writes import verify_conversion
+
+            return verify_conversion(self, change, before, response)
         if change.action == "create_paused_search":
             campaign_resources = [
                 r.campaign_result.resource_name
@@ -181,8 +197,7 @@ class GoogleAdsWriteGateway:
             if change.action == "set_budget":
                 good = (
                     actual["campaign"]["amount_micros"] == change.amount_micros
-                    and actual["campaign"]["status"]
-                    == before["campaign"]["status"]
+                    and actual["campaign"]["status"] == before["campaign"]["status"]
                 )
             else:
                 good = actual["campaign"]["status"] == (

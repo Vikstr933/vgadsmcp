@@ -35,9 +35,7 @@ def authorized(request, secret):
         scheme, data = request.headers.get("authorization", "").split(" ", 1)
         if scheme.lower() != "basic":
             return False
-        user, password = (
-            base64.b64decode(data, validate=True).decode().split(":", 1)
-        )
+        user, password = base64.b64decode(data, validate=True).decode().split(":", 1)
         return hmac.compare_digest(user, "owner") and hmac.compare_digest(
             password.encode(), secret.encode()
         )
@@ -46,14 +44,20 @@ def authorized(request, secret):
 
 
 def csrf_token(plan, secret):
-    message = (
-        f"{plan['id']}:{plan['review_digest']}:{plan['expires_at']}".encode()
-    )
+    message = f"{plan['id']}:{plan['review_digest']}:{plan['expires_at']}".encode()
     return hmac.new(secret.encode(), message, hashlib.sha256).hexdigest()
 
 
 def render_review(plan):
     """Show currency amounts and before/after rather than protobuf/JSON internals."""
+    if plan["change"]["action"] in (
+        "create_conversion",
+        "update_conversion",
+        "set_conversion_primary",
+    ):
+        from ads_mcp.conversion_review import render_conversion_review
+
+        return render_conversion_review(plan)
     change, snapshot = plan["change"], plan["snapshot"]
     campaign = snapshot.get("campaign", {})
     currency = snapshot["account"]["currency"]
@@ -88,11 +92,7 @@ def render_review(plan):
             ("Budgivning och nätverk", "Manuell CPC, endast Google Sök"),
             (
                 "Innehåller politisk EU-reklam",
-                (
-                    "Ja"
-                    if change["eu_political_advertising"] == "contains"
-                    else "Nej"
-                ),
+                ("Ja" if change["eu_political_advertising"] == "contains" else "Nej"),
             ),
             (
                 "Innehåll",
@@ -152,8 +152,7 @@ async def approval_page(request: Request):
         plan = await run_in_threadpool(store.get, plan_id)
         check_plan(plan)
         review = {
-            key: plan[key]
-            for key in ("customer_id", "change", "snapshot", "review")
+            key: plan[key] for key in ("customer_id", "change", "snapshot", "review")
         }
         if digest(review) != plan["review_digest"]:
             raise WriteBlocked("Plan changed.")
@@ -184,9 +183,7 @@ async def approval_page(request: Request):
                         "För stort formulär.", status_code=413, headers=HEADERS
                     )
             fields = parse_qs(body.decode("utf-8"), strict_parsing=True)
-            if fields.get("confirm") != ["GODKÄNN"] or fields.get("csrf") != [
-                csrf
-            ]:
+            if fields.get("confirm") != ["GODKÄNN"] or fields.get("csrf") != [csrf]:
                 return PlainTextResponse(
                     "Godkännandet kunde inte verifieras.",
                     status_code=403,
@@ -202,9 +199,7 @@ async def approval_page(request: Request):
         rendered = render_review(plan)
         activation = plan["change"]["action"] == "activate"
         title = (
-            "Godkänn separat aktivering"
-            if activation
-            else "Granska ändringsförslag"
+            "Godkänn separat aktivering" if activation else "Granska ändringsförslag"
         )
         warning = (
             "Denna åtgärd kan starta annonsering och kostnader. Kontrollera annonser, inriktning och bud i Google Ads."
@@ -231,6 +226,4 @@ async def approval_page(request: Request):
 
 
 def register_approval_routes(mcp):
-    mcp.custom_route("/approvals/{plan_id}", methods=["GET", "POST"])(
-        approval_page
-    )
+    mcp.custom_route("/approvals/{plan_id}", methods=["GET", "POST"])(approval_page)

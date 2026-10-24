@@ -9,14 +9,13 @@ from mcp.types import ToolAnnotations
 
 from ads_mcp.write_policy import Change, WriteBlocked, WritePolicy, principal
 from ads_mcp.write_workflow import WriteWorkflow
+from ads_mcp.conversion_writes import ConversionSettings
 
 writes_mcp = FastMCP("writes")
 PREVIEW = ToolAnnotations(
     readOnlyHint=False, destructiveHint=False, idempotentHint=False
 )
-APPLY = ToolAnnotations(
-    readOnlyHint=False, destructiveHint=True, idempotentHint=True
-)
+APPLY = ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=True)
 
 
 def preview(change):
@@ -43,6 +42,8 @@ def policy_status() -> dict:
         "persistent_store_configured": bool(policy.project),
         "approval_secret_configured": len(policy.approval_secret) >= 32,
         "creation_status": "PAUSED",
+        "conversion_tools_version": "1",
+        "conversion_creation": "Native WEBPAGE, ENABLED and secondary; no tags installed. Separate primary/secondary approval. Shared MCC-owned conversions and GA4 imports excluded.",
         "approval": "Separate password-protected browser page; never an MCP approval argument.",
     }
 
@@ -121,6 +122,61 @@ def validated_plan_id(plan_id):
     if not re.fullmatch(r"[a-f0-9]{32}", plan_id):
         raise ToolError("Invalid plan ID.")
     return plan_id
+
+
+@writes_mcp.tool(annotations=PREVIEW)
+def preview_create_conversion(
+    customer_id: str,
+    settings: ConversionSettings,
+    login_customer_id: str | None = None,
+) -> dict:
+    """Validate creating a native WEBPAGE conversion in the selected client account. Requires name/category/counting_type. Creates SECONDARY, with ENABLED status (conversions have no pause state), only after separate human browser approval. Does not deploy tags or import GA4 events. Shared MCC-owned conversions are blocked. No Google Ads changes during preview."""
+    return preview(
+        Change(
+            action="create_conversion",
+            customer_id=customer_id,
+            login_customer_id=login_customer_id,
+            conversion_settings=settings,
+        )
+    )
+
+
+@writes_mcp.tool(annotations=PREVIEW)
+def preview_update_conversion(
+    customer_id: str,
+    conversion_action_id: str,
+    settings: ConversionSettings,
+    login_customer_id: str | None = None,
+) -> dict:
+    """Validate changing explicit settings on an enabled native WEBPAGE conversion owned by the selected client. Only non-null settings change; no deletion, type/status/primary changes, GA4 imports or shared MCC conversions. Reporting and bidding may be affected, including for custom goals. Return an exact before/after and independent human approval URL."""
+    return preview(
+        Change(
+            action="update_conversion",
+            customer_id=customer_id,
+            login_customer_id=login_customer_id,
+            conversion_action_id=conversion_action_id,
+            conversion_settings=settings,
+        )
+    )
+
+
+@writes_mcp.tool(annotations=PREVIEW)
+def preview_conversion_primary(
+    customer_id: str,
+    conversion_action_id: str,
+    primary_for_goal: bool,
+    login_customer_id: str | None = None,
+) -> dict:
+    """Validate a SEPARATE primary/secondary change for a native WEBPAGE conversion. Can affect reporting and Smart Bidding immediately across the client account; review goals first. Secondary actions can still be used by custom goals. No other setting changes. Requires a NEW human browser approval before execute_approved_plan."""
+    return preview(
+        Change(
+            action="set_conversion_primary",
+            customer_id=customer_id,
+            login_customer_id=login_customer_id,
+            conversion_action_id=conversion_action_id,
+            primary_for_goal=primary_for_goal,
+        )
+    )
 
 
 @writes_mcp.tool(annotations=APPLY)
