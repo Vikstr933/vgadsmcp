@@ -5,6 +5,9 @@ Google validates requests but nothing is created or changed. New Search campaign
 can only be created **PAUSED**. Every applied change needs separate human approval
 on an owner-only browser page; activation needs a new approval of its own.
 See [safe writes setup and limitations](docs/safe-writes.md) before enabling writes.
+The [complete Search campaign builder](docs/search-campaign-builder.md) previews
+and creates ad groups, keywords, ads, assets, targeting and campaign-specific goals
+under a paused campaign, with the same budget limits and owner approval.
 
 This repo contains the source code for running an
 [MCP](https://modelcontextprotocol.io) server that interacts with the

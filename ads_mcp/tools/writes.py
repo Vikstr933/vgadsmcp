@@ -10,6 +10,7 @@ from mcp.types import ToolAnnotations
 from ads_mcp.write_policy import Change, WriteBlocked, WritePolicy, principal
 from ads_mcp.write_workflow import WriteWorkflow
 from ads_mcp.conversion_writes import ConversionSettings
+from ads_mcp.search_campaign_schema import SearchCampaign
 
 writes_mcp = FastMCP("writes")
 PREVIEW = ToolAnnotations(
@@ -43,6 +44,7 @@ def policy_status() -> dict:
         "approval_secret_configured": len(policy.approval_secret) >= 32,
         "creation_status": "PAUSED",
         "conversion_tools_version": "1",
+        "search_campaign_builder_version": "1",
         "conversion_creation": "Native WEBPAGE, ENABLED and secondary; no tags installed. Separate primary/secondary approval. Shared MCC-owned conversions and GA4 imports excluded.",
         "approval": "Separate password-protected browser page; never an MCP approval argument.",
     }
@@ -99,6 +101,25 @@ def preview_create_paused_search(
             amount_micros=amount_micros,
             eu_political_advertising=eu_political_advertising,
             login_customer_id=login_customer_id,
+        )
+    )
+
+
+@writes_mcp.tool(annotations=PREVIEW)
+def preview_create_search_campaign(
+    customer_id: str,
+    campaign: SearchCampaign,
+    eu_political_advertising: Literal["contains", "does_not_contain"],
+    login_customer_id: str | None = None,
+) -> dict:
+    """Preview a COMPLETE PAUSED Search campaign: budget, dates, locations/languages, ad groups, EXACT/PHRASE keywords and negatives, responsive search ads, sitelinks/callouts and explicit client-owned conversion action IDs. Use this instead of preview_create_paused_search for full builds. 1 currency unit = 1,000,000 micros. Requires real URLs, confirmed year/dates, budget, bidding, targeting and EU political-ad declaration; never invent missing facts. Google Search only, presence targeting, AI Max/text customization/URL expansion off. Children are enabled UNDER a paused campaign; no delivery until separate activation. Account-wide automatic assets/recommendations need manual review. Preview does not mutate Google Ads. After human browser approval, execute_approved_plan creates the package, configures campaign-only conversion goals in a second stage, and reads back. Selected custom-goal conversions count for bidding even if secondary. Shared MCC-owned conversions unsupported. On an uncertain result inspect plan_status; never retry creation."""
+    return preview(
+        Change(
+            action="create_search_campaign",
+            customer_id=customer_id,
+            login_customer_id=login_customer_id,
+            search_campaign=campaign,
+            eu_political_advertising=eu_political_advertising,
         )
     )
 

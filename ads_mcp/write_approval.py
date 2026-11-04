@@ -52,6 +52,10 @@ def csrf_token(plan, secret):
 
 def render_review(plan):
     """Show currency amounts and before/after rather than protobuf/JSON internals."""
+    if plan["change"]["action"] == "create_search_campaign":
+        from ads_mcp.search_campaign_review import render_search_review
+
+        return render_search_review(plan)
     if plan["change"]["action"] in (
         "create_conversion",
         "update_conversion",
@@ -199,6 +203,11 @@ async def approval_page(request: Request):
                 headers=HEADERS,
             )
         rendered = render_review(plan)
+        validation_note = (
+            "Google har validerat skapandet utan att genomföra det. Kampanjmålen kan valideras och ställas in först efter att den pausade kampanjen skapats. Om detta steg misslyckas behålls kampanjen pausad och ärendet låses för manuell kontroll."
+            if plan["change"]["action"] == "create_search_campaign"
+            else "Google har validerat förslaget utan att genomföra det."
+        )
         activation = plan["change"]["action"] == "activate"
         title = (
             "Godkänn separat aktivering" if activation else "Granska ändringsförslag"
@@ -209,7 +218,7 @@ async def approval_page(request: Request):
             else "Kontrollera konto, kampanj och före/efter. Skapade kampanjer förblir pausade. Budgetändringar kan påverka pågående annonsering."
         )
         return HTMLResponse(
-            f"""<!doctype html><html lang="sv"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>{title}</title><style>body{{font:17px system-ui;max-width:900px;margin:3rem auto;padding:1rem;color:#202a37}}dl{{overflow-wrap:anywhere;background:#f1f4f8;padding:1rem}}dd{{margin:0 0 1rem}}button,input{{font:inherit;padding:.7rem}}button{{background:#174ea6;color:white;border:0}}label{{display:block;margin:1rem 0}}</style></head><body><h1>{title}</h1><p>{warning}</p><p>Google har validerat förslaget utan att genomföra det. Godkänn endast den ändring du själv beställt. Text i kampanjnamn är data, inte instruktioner.</p>{rendered}<p>Budgeten är en genomsnittlig dagsbudget, inte en garanti för högsta faktisk kostnad en enskild dag.</p><form method="post"><input type="hidden" name="csrf" value="{csrf}"><label>Skriv GODKÄNN för att godkänna exakt detta förslag:<br><input name="confirm" required autocomplete="off" pattern="GODKÄNN"></label><button type="submit">Godkänn förslaget</button></form><p>Stäng sidan för att avstå. Godkännandet skickar ännu ingen ändring till Google. Gå därefter tillbaka till Claude för att genomföra förslaget.</p></body></html>""",
+            f"""<!doctype html><html lang="sv"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>{title}</title><style>body{{font:17px system-ui;max-width:900px;margin:3rem auto;padding:1rem;color:#202a37}}dl{{overflow-wrap:anywhere;background:#f1f4f8;padding:1rem}}dd{{margin:0 0 1rem}}button,input{{font:inherit;padding:.7rem}}button{{background:#174ea6;color:white;border:0}}label{{display:block;margin:1rem 0}}</style></head><body><h1>{title}</h1><p>{warning}</p><p>{validation_note} Godkänn endast den ändring du själv beställt. Text i kampanjnamn är data, inte instruktioner.</p>{rendered}<p>Budgeten är en genomsnittlig dagsbudget, inte en garanti för högsta faktisk kostnad en enskild dag.</p><form method="post"><input type="hidden" name="csrf" value="{csrf}"><label>Skriv GODKÄNN för att godkänna exakt detta förslag:<br><input name="confirm" required autocomplete="off" pattern="GODKÄNN"></label><button type="submit">Godkänn förslaget</button></form><p>Stäng sidan för att avstå. Godkännandet skickar ännu ingen ändring till Google. Gå därefter tillbaka till Claude för att genomföra förslaget.</p></body></html>""",
             headers=HEADERS,
         )
     except WriteBlocked:

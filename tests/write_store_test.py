@@ -95,18 +95,14 @@ class StoreTest(unittest.TestCase):
             p.start()
             self.addCleanup(p.stop)
         self.store = FirestorePlanStore(policy())
-        self.workflow = WriteWorkflow(
-            policy(), self.store, lambda _: FakeGateway()
-        )
+        self.workflow = WriteWorkflow(policy(), self.store, lambda _: FakeGateway())
         self.plan_id = self.workflow.preview(
             Change(action="pause", customer_id=CID, campaign_id="42"), "owner"
         )["plan_id"]
 
     def test_approve_claim_complete_and_persistent_retention(self):
         self.store.transition(self.plan_id, "pending_approval", "approved")
-        self.store.transition(
-            self.plan_id, "approved", "executing", owner="owner"
-        )
+        self.store.transition(self.plan_id, "approved", "executing", owner="owner")
         self.assertNotIn("delete_after", self.store.get(self.plan_id))
         self.store.transition(
             self.plan_id,
@@ -116,9 +112,7 @@ class StoreTest(unittest.TestCase):
             result={"status": "PAUSED"},
         )
         self.assertIn("delete_after", self.store.get(self.plan_id))
-        self.assertEqual(
-            self.store.get(self.plan_id)["result"], {"status": "PAUSED"}
-        )
+        self.assertEqual(self.store.get(self.plan_id)["result"], {"status": "PAUSED"})
         self.assertNotIn(f"ads_mcp_write_locks/{CID}", self.db.data)
 
     def test_two_replicas_cannot_claim_same_approval(self):
@@ -137,14 +131,30 @@ class StoreTest(unittest.TestCase):
             results = list(executor.map(claim, range(2)))
         self.assertEqual(sorted(results), [False, True])
 
+    def test_created_resource_receipt_requires_execution_lock_and_survives_unknown(
+        self,
+    ):
+        with self.assertRaises(WriteBlocked):
+            self.store.record_progress(self.plan_id, "owner", {"campaign_id": "42"})
+        self.store.transition(self.plan_id, "pending_approval", "approved")
+        self.store.transition(self.plan_id, "approved", "executing", owner="owner")
+        with self.assertRaises(WriteBlocked):
+            self.store.record_progress(
+                self.plan_id, "another-user", {"campaign_id": "42"}
+            )
+        self.store.record_progress(self.plan_id, "owner", {"campaign_id": "42"})
+        self.store.transition(self.plan_id, "executing", "unknown", owner="owner")
+        plan = self.store.get(self.plan_id)
+        self.assertEqual(plan["progress"], {"campaign_id": "42"})
+        self.assertNotIn("delete_after", plan)
+        self.assertIn(f"ads_mcp_write_locks/{CID}", self.db.data)
+        with self.assertRaises(WriteBlocked):
+            self.store.record_progress(self.plan_id, "owner", {"campaign_id": "43"})
+
     def test_unknown_outcome_keeps_persistent_lock_across_instances(self):
         self.store.transition(self.plan_id, "pending_approval", "approved")
-        self.store.transition(
-            self.plan_id, "approved", "executing", owner="owner"
-        )
-        self.store.transition(
-            self.plan_id, "executing", "unknown", owner="owner"
-        )
+        self.store.transition(self.plan_id, "approved", "executing", owner="owner")
+        self.store.transition(self.plan_id, "executing", "unknown", owner="owner")
         self.assertNotIn("delete_after", self.store.get(self.plan_id))
         another = self.workflow.preview(
             Change(action="pause", customer_id=CID, campaign_id="42"), "owner"
@@ -168,9 +178,7 @@ class StoreTest(unittest.TestCase):
 
     def test_write_result_can_be_recorded_after_plan_expiry(self):
         self.store.transition(self.plan_id, "pending_approval", "approved")
-        self.store.transition(
-            self.plan_id, "approved", "executing", owner="owner"
-        )
+        self.store.transition(self.plan_id, "approved", "executing", owner="owner")
         self.db.data[f"ads_mcp_write_plans/{self.plan_id}"]["expires_at"] = (
             time.time() - 1
         )
@@ -181,9 +189,7 @@ class StoreTest(unittest.TestCase):
 
     def test_wrong_account_lock_cannot_be_released(self):
         self.store.transition(self.plan_id, "pending_approval", "approved")
-        self.store.transition(
-            self.plan_id, "approved", "executing", owner="owner"
-        )
+        self.store.transition(self.plan_id, "approved", "executing", owner="owner")
         self.db.data[f"ads_mcp_write_locks/{CID}"]["plan_id"] = "different-plan"
         with self.assertRaises(WriteBlocked):
             self.store.transition(

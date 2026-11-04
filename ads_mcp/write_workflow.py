@@ -9,6 +9,10 @@ from ads_mcp.write_gateway import GoogleAdsWriteGateway
 
 
 def describe(change, before):
+    if change.action == "create_search_campaign":
+        from ads_mcp.search_campaigns import describe_search
+
+        return describe_search(change, before)
     if change.action in (
         "create_conversion",
         "update_conversion",
@@ -171,6 +175,26 @@ class WriteWorkflow:
                 )
             sent_write = True
             response = gateway.mutate(change, current, validate_only=False)
+            if change.action == "create_search_campaign":
+                from ads_mcp.search_campaigns import (
+                    compile_search,
+                    creation_receipt,
+                    configure_search_goals,
+                )
+
+                response = creation_receipt(
+                    change, compile_search(gateway, change, current), response
+                )
+                # Persist IDs before stage two: failures must be reconciled, never recreated.
+                self.store.record_progress(plan_id, owner, response)
+                check_plan(plan, owner)
+                configure_search_goals(
+                    gateway,
+                    change,
+                    current,
+                    response,
+                    before_write=lambda: check_plan(plan, owner),
+                )
             actual = gateway.verify(change, current, response)
             self.store.transition(
                 plan_id, "executing", "verified", owner=owner, result=actual

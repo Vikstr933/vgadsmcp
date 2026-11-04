@@ -12,6 +12,7 @@ returnerar. Godkännandesidan och lagringen ligger i ditt Google Cloud-projekt.
 | `writes_preview_pause` | Validerar pausning av en kampanj. |
 | `writes_preview_budget` | Validerar ändring av en egen, daglig kampanjbudget. Delade budgetar blockeras. |
 | `writes_preview_create_paused_search` | Validerar en **tom, pausad** sökkampanj och en separat budget. Inga annonser, sökord, annonsgrupper eller geografiska inställningar skapas. |
+| `writes_preview_create_search_campaign` | Validerar ett komplett paket: pausad sökkampanj, budget, datum, geografi/språk, annonsgrupper, sökord, negativa sökord, responsiva sökannonser, webbplatslänkar, informationstillägg och valda konverteringar. Se [kampanjbyggaren](search-campaign-builder.md). |
 | `writes_preview_activation` | Validerar separat aktivering av en pausad kampanj, om kontopolicyn tillåter aktivering. |
 | `writes_execute_approved_plan` | Genomför endast ett separat godkänt, oförändrat förslag en gång. |
 | `writes_plan_status` | Visar den inloggade användarens förslag och resultat. |
@@ -30,7 +31,10 @@ objekt skapas eller ändras, inga godkännanden sparas och genomförande blocker
 länk till `/approvals/<plan-id>`. Du öppnar länken själv, granskar kontot och
 före/efter, och skriver GODKÄNN. Därefter kan Claude genomföra förslaget. Servern
 validerar igen, kontrollerar att tillståndet inte ändrats, tar ett beständigt lås,
-skickar en enda ändring och läser tillbaka resultatet.
+skickar godkända ändringar och läser tillbaka resultatet. Den kompletta
+kampanjbyggaren använder två steg: atomiskt skapande, följt av kampanjens
+konverteringsmål. Kampanjen är pausad under båda stegen. Målkonfigurationen kan
+valideras mot Google först när kampanjens målobjekt har skapats av Google.
 
 ## Konfigurera Cloud Run
 

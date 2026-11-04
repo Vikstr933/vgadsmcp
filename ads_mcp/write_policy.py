@@ -9,6 +9,7 @@ from typing import Literal
 from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+from ads_mcp.search_campaign_schema import SearchCampaign
 from ads_mcp.conversion_writes import (
     ConversionSettings,
     check_conversion_shape,
@@ -27,6 +28,7 @@ class Change(BaseModel):
         "pause",
         "set_budget",
         "create_paused_search",
+        "create_search_campaign",
         "activate",
         "create_conversion",
         "update_conversion",
@@ -35,6 +37,7 @@ class Change(BaseModel):
     customer_id: str
     login_customer_id: str | None = None
     campaign_id: str | None = None
+    search_campaign: SearchCampaign | None = None
     conversion_action_id: str | None = None
     conversion_settings: ConversionSettings | None = None
     primary_for_goal: bool | None = None
@@ -66,6 +69,30 @@ class Change(BaseModel):
         return value
 
     def check_shape(self):
+        if self.action == "create_search_campaign":
+            if self.search_campaign is None or self.eu_political_advertising is None:
+                raise WriteBlocked(
+                    "A complete campaign and EU political-ad declaration are required."
+                )
+            if any(
+                v is not None
+                for v in (
+                    self.campaign_id,
+                    self.amount_micros,
+                    self.name,
+                    self.conversion_action_id,
+                    self.conversion_settings,
+                    self.primary_for_goal,
+                )
+            ):
+                raise WriteBlocked(
+                    "Do not mix campaign-package inputs with other changes."
+                )
+            return
+        if self.search_campaign is not None:
+            raise WriteBlocked(
+                "Campaign packages are only accepted for create_search_campaign."
+            )
         if self.action in (
             "create_conversion",
             "update_conversion",
@@ -201,11 +228,13 @@ class WritePolicy:
         if change.action == "activate" and not account.allow_activation:
             raise WriteBlocked("Activation is disabled for this account.")
         amount = change.amount_micros
+        if change.action == "create_search_campaign":
+            amount = change.search_campaign.daily_budget_micros
         if change.action == "activate":
             amount = snapshot["campaign"]["amount_micros"]
         if amount is not None and amount > account.max_daily_budget_micros:
             raise WriteBlocked("The proposed daily budget exceeds the account limit.")
-        if change.action != "create_paused_search":
+        if change.action not in ("create_paused_search", "create_search_campaign"):
             campaign = snapshot["campaign"]
             if (
                 campaign["id"] != change.campaign_id

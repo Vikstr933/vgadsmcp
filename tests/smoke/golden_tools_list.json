@@ -637,6 +637,384 @@
         "idempotentHint": false,
         "readOnlyHint": false
       },
+      "description": "Preview a COMPLETE PAUSED Search campaign: budget, dates, locations/languages, ad groups, EXACT/PHRASE keywords and negatives, responsive search ads, sitelinks/callouts and explicit client-owned conversion action IDs. Use this instead of preview_create_paused_search for full builds. 1 currency unit = 1,000,000 micros. Requires real URLs, confirmed year/dates, budget, bidding, targeting and EU political-ad declaration; never invent missing facts. Google Search only, presence targeting, AI Max/text customization/URL expansion off. Children are enabled UNDER a paused campaign; no delivery until separate activation. Account-wide automatic assets/recommendations need manual review. Preview does not mutate Google Ads. After human browser approval, execute_approved_plan creates the package, configures campaign-only conversion goals in a second stage, and reads back. Selected custom-goal conversions count for bidding even if secondary. Shared MCC-owned conversions unsupported. On an uncertain result inspect plan_status; never retry creation.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "campaign": {
+            "additionalProperties": false,
+            "properties": {
+              "ad_groups": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "ads": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "descriptions": {
+                            "items": {
+                              "maxLength": 90,
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "maxItems": 4,
+                            "minItems": 2,
+                            "type": "array"
+                          },
+                          "final_url": {
+                            "maxLength": 2048,
+                            "type": "string"
+                          },
+                          "headlines": {
+                            "items": {
+                              "maxLength": 30,
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "maxItems": 15,
+                            "minItems": 3,
+                            "type": "array"
+                          },
+                          "path1": {
+                            "anyOf": [
+                              {
+                                "maxLength": 15,
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "default": null
+                          },
+                          "path2": {
+                            "anyOf": [
+                              {
+                                "maxLength": 15,
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "default": null
+                          }
+                        },
+                        "required": [
+                          "headlines",
+                          "descriptions",
+                          "final_url"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 3,
+                      "minItems": 1,
+                      "type": "array"
+                    },
+                    "cpc_bid_micros": {
+                      "anyOf": [
+                        {
+                          "exclusiveMinimum": 0,
+                          "maximum": 1000000000000,
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    },
+                    "keywords": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "match_type": {
+                            "enum": [
+                              "EXACT",
+                              "PHRASE"
+                            ],
+                            "type": "string"
+                          },
+                          "text": {
+                            "maxLength": 80,
+                            "minLength": 1,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "text",
+                          "match_type"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 100,
+                      "minItems": 1,
+                      "type": "array"
+                    },
+                    "name": {
+                      "maxLength": 100,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "negative_keywords": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "match_type": {
+                            "enum": [
+                              "EXACT",
+                              "PHRASE"
+                            ],
+                            "type": "string"
+                          },
+                          "text": {
+                            "maxLength": 80,
+                            "minLength": 1,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "text",
+                          "match_type"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 100,
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "keywords",
+                    "ads"
+                  ],
+                  "type": "object"
+                },
+                "maxItems": 20,
+                "minItems": 1,
+                "type": "array"
+              },
+              "bidding": {
+                "enum": [
+                  "MANUAL_CPC",
+                  "MAXIMIZE_CONVERSIONS",
+                  "MAXIMIZE_CONVERSION_VALUE"
+                ],
+                "type": "string"
+              },
+              "callouts": {
+                "items": {
+                  "maxLength": 25,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 20,
+                "type": "array"
+              },
+              "conversion_action_ids": {
+                "items": {
+                  "pattern": "^[0-9]{1,20}$",
+                  "type": "string"
+                },
+                "maxItems": 20,
+                "minItems": 1,
+                "type": "array"
+              },
+              "daily_budget_micros": {
+                "exclusiveMinimum": 0,
+                "maximum": 1000000000000,
+                "type": "integer"
+              },
+              "end_date": {
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                "type": "string"
+              },
+              "excluded_geo_target_ids": {
+                "items": {
+                  "pattern": "^[0-9]{1,20}$",
+                  "type": "string"
+                },
+                "maxItems": 30,
+                "type": "array"
+              },
+              "final_url_suffix": {
+                "anyOf": [
+                  {
+                    "maxLength": 1024,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              },
+              "geo_target_ids": {
+                "items": {
+                  "pattern": "^[0-9]{1,20}$",
+                  "type": "string"
+                },
+                "maxItems": 30,
+                "minItems": 1,
+                "type": "array"
+              },
+              "language_ids": {
+                "items": {
+                  "pattern": "^[0-9]{1,20}$",
+                  "type": "string"
+                },
+                "maxItems": 10,
+                "minItems": 1,
+                "type": "array"
+              },
+              "name": {
+                "maxLength": 100,
+                "minLength": 1,
+                "type": "string"
+              },
+              "negative_keywords": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "match_type": {
+                      "enum": [
+                        "EXACT",
+                        "PHRASE"
+                      ],
+                      "type": "string"
+                    },
+                    "text": {
+                      "maxLength": 80,
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "text",
+                    "match_type"
+                  ],
+                  "type": "object"
+                },
+                "maxItems": 200,
+                "type": "array"
+              },
+              "sitelinks": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "description1": {
+                      "anyOf": [
+                        {
+                          "maxLength": 35,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    },
+                    "description2": {
+                      "anyOf": [
+                        {
+                          "maxLength": 35,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    },
+                    "final_url": {
+                      "maxLength": 2048,
+                      "type": "string"
+                    },
+                    "text": {
+                      "maxLength": 25,
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "text",
+                    "final_url"
+                  ],
+                  "type": "object"
+                },
+                "maxItems": 20,
+                "type": "array"
+              },
+              "start_date": {
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "name",
+              "daily_budget_micros",
+              "bidding",
+              "start_date",
+              "end_date",
+              "geo_target_ids",
+              "language_ids",
+              "conversion_action_ids",
+              "ad_groups"
+            ],
+            "type": "object"
+          },
+          "customer_id": {
+            "type": "string"
+          },
+          "eu_political_advertising": {
+            "enum": [
+              "contains",
+              "does_not_contain"
+            ],
+            "type": "string"
+          },
+          "login_customer_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "customer_id",
+          "campaign",
+          "eu_political_advertising"
+        ],
+        "type": "object"
+      },
+      "name": "writes_preview_create_search_campaign",
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Writes Preview Create Search Campaign"
+    },
+    {
+      "_meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      },
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "readOnlyHint": false
+      },
       "description": "Dry-run a campaign pause. No Google Ads changes. In approval mode return an owner review URL. Never approve on behalf of the owner.",
       "inputSchema": {
         "additionalProperties": false,

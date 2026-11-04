@@ -24,9 +24,7 @@ class FirestorePlanStore:
             raise WriteBlocked(
                 "Configure WRITE_FIRESTORE_PROJECT before saving approval plans."
             )
-        self.client = firestore.Client(
-            project=policy.project, database=policy.database
-        )
+        self.client = firestore.Client(project=policy.project, database=policy.database)
         self.plans = self.client.collection("ads_mcp_write_plans")
         self.locks = self.client.collection("ads_mcp_write_locks")
 
@@ -37,6 +35,28 @@ class FirestorePlanStore:
 
     def get(self, plan_id):
         return self.plans.document(plan_id).get().to_dict()
+
+    def record_progress(self, plan_id, owner, receipt):
+        """Retain created resource IDs before the next mutation, with lock ownership."""
+        from google.cloud import firestore
+
+        ref = self.plans.document(plan_id)
+
+        @firestore.transactional
+        def record(transaction):
+            plan = ref.get(transaction=transaction).to_dict()
+            if not plan or plan["owner"] != owner or plan["status"] != "executing":
+                raise WriteBlocked("Execution ownership changed; reconcile manually.")
+            lock = (
+                self.locks.document(plan["change"]["customer_id"])
+                .get(transaction=transaction)
+                .to_dict()
+            )
+            if not lock or lock["plan_id"] != plan_id:
+                raise WriteBlocked("Execution lock changed; reconcile manually.")
+            transaction.update(ref, {"progress": receipt, "updated_at": time.time()})
+
+        record(self.client.transaction())
 
     def transition(self, plan_id, expected, target, owner=None, result=None):
         from google.cloud import firestore
@@ -71,9 +91,9 @@ class FirestorePlanStore:
                         "Account lock changed; operator reconciliation required."
                     )
                 transaction.delete(lock_ref)
-                updates["delete_after"] = datetime.now(
-                    timezone.utc
-                ) + timedelta(days=30)
+                updates["delete_after"] = datetime.now(timezone.utc) + timedelta(
+                    days=30
+                )
             transaction.update(ref, updates)
             return {**plan, **updates}
 
