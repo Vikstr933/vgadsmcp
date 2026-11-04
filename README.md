@@ -8,6 +8,8 @@ See [safe writes setup and limitations](docs/safe-writes.md) before enabling wri
 The [complete Search campaign builder](docs/search-campaign-builder.md) previews
 and creates ad groups, keywords, ads, assets, targeting and campaign-specific goals
 under a paused campaign, with the same budget limits and owner approval.
+Read-only [Keyword Planner tools](docs/keyword-planning.md) provide keyword ideas,
+monthly historical metrics and bounded forecast scenarios before campaign creation.
 
 This repo contains the source code for running an
 [MCP](https://modelcontextprotocol.io) server that interacts with the

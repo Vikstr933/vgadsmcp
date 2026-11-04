@@ -40,6 +40,355 @@
         }
       },
       "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "readOnlyHint": true
+      },
+      "description": "Requires Basic or Standard API access (Explorer cannot use Keyword Planner). Estimate one future keyword scenario using Google's planless forecast API. Requires explicit dates within one year, budget, exact/phrase keywords, language and geos, and MANUAL_CPC with max_cpc_bid_micros or MAXIMIZE_CONVERSIONS. Read-only: budgets are hypothetical, no campaign is created. Returns only available total-period cost/click/conversion metrics; missing is null. API v25 has NO network selector, negative keywords, ad copy, or campaign-specific conversion selection: this is not an exact simulation of the Search campaign builder. Keep event/city scenarios separate; never represent estimates as guarantees or spend approval.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "request": {
+            "additionalProperties": false,
+            "properties": {
+              "bidding": {
+                "enum": [
+                  "MANUAL_CPC",
+                  "MAXIMIZE_CONVERSIONS"
+                ],
+                "type": "string"
+              },
+              "customer_id": {
+                "type": "string"
+              },
+              "daily_budget_micros": {
+                "exclusiveMinimum": 0,
+                "maximum": 1000000000000,
+                "type": "integer"
+              },
+              "end_date": {
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                "type": "string"
+              },
+              "geo_target_ids": {
+                "items": {
+                  "pattern": "^[0-9]{1,20}$",
+                  "type": "string"
+                },
+                "maxItems": 10,
+                "minItems": 1,
+                "type": "array"
+              },
+              "keywords": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "match_type": {
+                      "enum": [
+                        "EXACT",
+                        "PHRASE"
+                      ],
+                      "type": "string"
+                    },
+                    "text": {
+                      "maxLength": 80,
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "text",
+                    "match_type"
+                  ],
+                  "type": "object"
+                },
+                "maxItems": 500,
+                "minItems": 1,
+                "type": "array"
+              },
+              "language_id": {
+                "pattern": "^[0-9]{1,20}$",
+                "type": "string"
+              },
+              "login_customer_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              },
+              "max_cpc_bid_micros": {
+                "anyOf": [
+                  {
+                    "exclusiveMinimum": 0,
+                    "maximum": 10000000000,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              },
+              "start_date": {
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "customer_id",
+              "geo_target_ids",
+              "language_id",
+              "keywords",
+              "start_date",
+              "end_date",
+              "bidding",
+              "daily_budget_micros"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "request"
+        ],
+        "type": "object"
+      },
+      "name": "keyword_planning_forecast",
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Keyword Planning Forecast"
+    },
+    {
+      "_meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      },
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "readOnlyHint": true
+      },
+      "description": "Requires Basic or Standard API access (Explorer cannot use Keyword Planner). Get real Google Keyword Planner ideas from keyword seeds, a public URL, or both. Requires accessible client customer_id, optional login_customer_id MCC, explicit geo_target_ids and language_id. Google Search only. Returns one bounded page (has_more indicates truncation), approximate historical volume, monthly seasonality and bid ranges in account-currency micros. Optional complete-month historical range. Never invent missing metrics or treat ideas as approved keywords. Plan different event/city combinations separately. No Google Ads mutations or persistent plans.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "request": {
+            "additionalProperties": false,
+            "properties": {
+              "customer_id": {
+                "type": "string"
+              },
+              "end_month": {
+                "anyOf": [
+                  {
+                    "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              },
+              "geo_target_ids": {
+                "items": {
+                  "pattern": "^[0-9]{1,20}$",
+                  "type": "string"
+                },
+                "maxItems": 10,
+                "minItems": 1,
+                "type": "array"
+              },
+              "keywords": {
+                "items": {
+                  "maxLength": 80,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 20,
+                "type": "array"
+              },
+              "language_id": {
+                "pattern": "^[0-9]{1,20}$",
+                "type": "string"
+              },
+              "limit": {
+                "default": 100,
+                "maximum": 500,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "login_customer_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              },
+              "start_month": {
+                "anyOf": [
+                  {
+                    "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              },
+              "url": {
+                "anyOf": [
+                  {
+                    "maxLength": 2048,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              }
+            },
+            "required": [
+              "customer_id",
+              "geo_target_ids",
+              "language_id"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "request"
+        ],
+        "type": "object"
+      },
+      "name": "keyword_planning_generate_ideas",
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Keyword Planning Generate Ideas"
+    },
+    {
+      "_meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      },
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "readOnlyHint": true
+      },
+      "description": "Requires Basic or Standard API access (Explorer cannot use Keyword Planner). Get Google historical monthly search volume, seasonality, competition and bid ranges for up to 500 keywords. Explicit language/geography, Google Search only; defaults to past 12 months. Account currency returned; 1 unit=1,000,000 micros. Preserve null vs zero and Google's merged close variants; never add overlapping volumes or promise future demand. Use for event-season research before proposing budgets. No campaign changes.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "request": {
+            "additionalProperties": false,
+            "properties": {
+              "customer_id": {
+                "type": "string"
+              },
+              "end_month": {
+                "anyOf": [
+                  {
+                    "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              },
+              "geo_target_ids": {
+                "items": {
+                  "pattern": "^[0-9]{1,20}$",
+                  "type": "string"
+                },
+                "maxItems": 10,
+                "minItems": 1,
+                "type": "array"
+              },
+              "keywords": {
+                "items": {
+                  "maxLength": 80,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 500,
+                "minItems": 1,
+                "type": "array"
+              },
+              "language_id": {
+                "pattern": "^[0-9]{1,20}$",
+                "type": "string"
+              },
+              "login_customer_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              },
+              "start_month": {
+                "anyOf": [
+                  {
+                    "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              }
+            },
+            "required": [
+              "customer_id",
+              "geo_target_ids",
+              "language_id",
+              "keywords"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "request"
+        ],
+        "type": "object"
+      },
+      "name": "keyword_planning_historical_metrics",
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Keyword Planning Historical Metrics"
+    },
+    {
+      "_meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      },
+      "annotations": {
         "readOnlyHint": true
       },
       "description": "Retrieves the selectable, filterable, and sortable fields for a specific Google Ads resource,\nincluding compatible metrics and segments.\n\nUse this tool to find out which fields you can select, filter by, or sort by\nwhen querying a specific resource (e.g., 'campaign', 'ad_group').\nThis tool also returns metrics and segments that can be selected with the resource.\nTheir names start with 'metrics.' and 'segments.' respectively.\n\nDo not guess fields, you MUST use this tool to discover them before constructing a query for the\n`search` tool.\n\nThe responses of this tool should be cached, as they don't change frequently.",
@@ -637,7 +986,7 @@
         "idempotentHint": false,
         "readOnlyHint": false
       },
-      "description": "Preview a COMPLETE PAUSED Search campaign: budget, dates, locations/languages, ad groups, EXACT/PHRASE keywords and negatives, responsive search ads, sitelinks/callouts and explicit client-owned conversion action IDs. Use this instead of preview_create_paused_search for full builds. 1 currency unit = 1,000,000 micros. Requires real URLs, confirmed year/dates, budget, bidding, targeting and EU political-ad declaration; never invent missing facts. Google Search only, presence targeting, AI Max/text customization/URL expansion off. Children are enabled UNDER a paused campaign; no delivery until separate activation. Account-wide automatic assets/recommendations need manual review. Preview does not mutate Google Ads. After human browser approval, execute_approved_plan creates the package, configures campaign-only conversion goals in a second stage, and reads back. Selected custom-goal conversions count for bidding even if secondary. Shared MCC-owned conversions unsupported. On an uncertain result inspect plan_status; never retry creation.",
+      "description": "Preview a COMPLETE PAUSED Search campaign: budget, dates, locations/languages, ad groups, EXACT/PHRASE keywords and negatives, responsive search ads, sitelinks/callouts and explicit client-owned conversion action IDs. Use this instead of preview_create_paused_search for full builds. Use keyword_planning tools first when search-volume research or forecasts are needed; never invent those metrics. 1 currency unit = 1,000,000 micros. Requires real URLs, confirmed year/dates, budget, bidding, targeting and EU political-ad declaration; never invent missing facts. Google Search only, presence targeting, AI Max/text customization/URL expansion off. Children are enabled UNDER a paused campaign; no delivery until separate activation. Account-wide automatic assets/recommendations need manual review. Preview does not mutate Google Ads. After human browser approval, execute_approved_plan creates the package, configures campaign-only conversion goals in a second stage, and reads back. Selected custom-goal conversions count for bidding even if secondary. Shared MCC-owned conversions unsupported. On an uncertain result inspect plan_status; never retry creation.",
       "inputSchema": {
         "additionalProperties": false,
         "properties": {

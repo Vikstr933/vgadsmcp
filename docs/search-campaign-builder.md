@@ -84,8 +84,9 @@ efter ett förlorat svar.
 ## Begränsningar och verifiering
 
 Verktyget skapar inte ett nytt Google Ads-konto, ordnar inte fakturering, installerar
-inte taggar och kontrollerar inte evenemangsfakta. Keyword Planner är inte tillagt
-i denna uppdatering. Befintliga kampanjer pausas inte automatiskt.
+inte taggar och kontrollerar inte evenemangsfakta. Separata
+[sökordsplaneringsverktyg](keyword-planning.md) kan användas före kampanjförslaget.
+Befintliga kampanjer pausas inte automatiskt.
 
 Automatiserade tester använder syntetiska konton, riktiga Google Ads-protobufar
 och simulerade transportsvar. De kontrollerar validering, budgetgränser, paketets

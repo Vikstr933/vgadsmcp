@@ -28,6 +28,7 @@ class TestToolsConfig(unittest.TestCase):
         self.assertTrue(config.is_namespace_enabled("customers"))
         self.assertTrue(config.is_namespace_enabled("search"))
         self.assertTrue(config.is_namespace_enabled("metadata"))
+        self.assertTrue(config.is_namespace_enabled("keyword_planning"))
         self.assertFalse(config.is_namespace_enabled("unknown_category"))
 
         self.assertEqual(config.get_namespace_prefix("customers"), "customers")
