@@ -189,15 +189,19 @@ def compile_search(gateway, change, before):
     builder = Compiler(gateway.client, change.customer_id)
     budget = builder.resource("campaignBudgets")
     campaign = builder.resource("campaigns")
+    budget_amount = (
+        dict(period="CUSTOM_PERIOD", total_amount_micros=spec.total_budget_micros)
+        if spec.total_budget_micros is not None
+        else dict(period="DAILY", amount_micros=spec.daily_budget_micros)
+    )
     builder.create(
         "campaign_budget",
         dict(
             resource_name=budget,
             name=spec.name + " budget",
-            amount_micros=spec.daily_budget_micros,
             explicitly_shared=False,
             delivery_method="STANDARD",
-            period="DAILY",
+            **budget_amount,
         ),
     )
     fields = {
@@ -589,7 +593,12 @@ def describe_search(change, before):
             "Custom goals use selected conversions for bidding even when secondary. Account conversion primary flags are not changed.",
             "Account-wide automatic assets, auto-apply recommendations and other inherited asset types are NOT disabled by this tool. Review them before launch.",
             "Responsive search ads still combine supplied texts automatically. No guarantee of placement or serving order.",
-            "Daily budget is an average, not a hard daily or total spend cap. Missing URLs or unconfirmed facts must be resolved before approval.",
+            (
+                "Campaign total budget caps spend over the scheduled period. It has no individual daily spending limit."
+                if spec.total_budget_micros is not None
+                else "Daily budget is an average, not a hard daily or total spend cap."
+            ),
+            "Resolve missing URLs or unconfirmed facts before approval.",
             "A second-stage failure leaves created objects paused and the account locked. Never retry creation blindly.",
         ],
         rollback="Keep the new campaign paused. No existing campaign is changed. Removal and activation are not part of this approval.",

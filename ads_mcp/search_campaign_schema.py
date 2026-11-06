@@ -151,7 +151,8 @@ class SearchSitelink(StrictModel):
 
 class SearchCampaign(StrictModel):
     name: Name
-    daily_budget_micros: Micros
+    daily_budget_micros: Micros | None = None
+    total_budget_micros: Micros | None = None
     bidding: Literal["MANUAL_CPC", "MAXIMIZE_CONVERSIONS", "MAXIMIZE_CONVERSION_VALUE"]
     start_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
     end_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
@@ -167,13 +168,24 @@ class SearchCampaign(StrictModel):
         Annotated[str, Field(max_length=1024), AfterValidator(printable)] | None
     ) = None
 
+    def duration_days(self):
+        return (
+            date.fromisoformat(self.end_date) - date.fromisoformat(self.start_date)
+        ).days + 1
+
     @model_validator(mode="after")
     def bounded_campaign(self):
-        start, end = date.fromisoformat(self.start_date), date.fromisoformat(
-            self.end_date
-        )
-        if end < start:
+        days = self.duration_days()
+        if days <= 0:
             raise ValueError("End date must not precede start date.")
+        if (self.daily_budget_micros is None) == (self.total_budget_micros is None):
+            raise ValueError(
+                "Supply exactly one of daily_budget_micros or total_budget_micros."
+            )
+        if self.total_budget_micros is not None and not 3 <= days <= 90:
+            raise ValueError(
+                "Search campaign total budgets require a period of 3 to 90 calendar days."
+            )
         for values in (
             self.geo_target_ids,
             self.excluded_geo_target_ids,

@@ -13,6 +13,13 @@ def render_search_review(plan):
     def money(value):
         return f"{Decimal(value) / Decimal(1_000_000):,.2f} {currency}"
 
+    total = spec.get("total_budget_micros")
+    budget = (
+        ("Totalbudget för kampanjperioden", money(total))
+        if total is not None
+        else ("Genomsnittlig dagsbudget", money(spec["daily_budget_micros"]))
+    )
+
     def table(rows):
         return (
             "<dl>"
@@ -43,7 +50,7 @@ def render_search_review(plan):
                     change.get("login_customer_id") or "Direkt åtkomst",
                 ),
                 ("Kampanj", spec["name"]),
-                ("Genomsnittlig dagsbudget", money(spec["daily_budget_micros"])),
+                budget,
                 ("Budgivning", spec["bidding"]),
                 (
                     "Period",

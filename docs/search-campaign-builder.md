@@ -25,8 +25,16 @@ fortfarande bara en tom kampanj.
    ett nytt godkännande.
 
 Återanslut/uppdatera anslutningen i Claude efter driftsättning om det nya verktyget
-inte syns. `writes_policy_status.search_campaign_builder_version` ska vara `1`.
+inte syns. `writes_policy_status.search_campaign_builder_version` ska vara `2`.
 Ingen ny hemlighet, ny tjänst eller ändring av befintliga åtkomstgränser behövs.
+
+## Totalbudget
+
+Ange `total_budget_micros` i stället för `daily_budget_micros` för en ny
+kampanj på 3–90 dagar. Totalbudgeten gäller hela perioden, och daglig
+kostnad kan variera. Beloppet delat med periodens dagar får inte överstiga
+kontots policy för genomsnittlig dagsbudget. Det här stödet gäller skapande
+av pausade kampanjer. En befintlig dagsbudget kan inte byta budgettyp.
 
 ## Vad paketet stöder
 

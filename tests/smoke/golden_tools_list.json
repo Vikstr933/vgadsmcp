@@ -986,7 +986,7 @@
         "idempotentHint": false,
         "readOnlyHint": false
       },
-      "description": "Preview a COMPLETE PAUSED Search campaign: budget, dates, locations/languages, ad groups, EXACT/PHRASE keywords and negatives, responsive search ads, sitelinks/callouts and explicit client-owned conversion action IDs. Use this instead of preview_create_paused_search for full builds. Use keyword_planning tools first when search-volume research or forecasts are needed; never invent those metrics. 1 currency unit = 1,000,000 micros. Requires real URLs, confirmed year/dates, budget, bidding, targeting and EU political-ad declaration; never invent missing facts. Google Search only, presence targeting, AI Max/text customization/URL expansion off. Children are enabled UNDER a paused campaign; no delivery until separate activation. Account-wide automatic assets/recommendations need manual review. Preview does not mutate Google Ads. After human browser approval, execute_approved_plan creates the package, configures campaign-only conversion goals in a second stage, and reads back. Selected custom-goal conversions count for bidding even if secondary. Shared MCC-owned conversions unsupported. On an uncertain result inspect plan_status; never retry creation.",
+      "description": "Preview a COMPLETE PAUSED Search campaign: budget, dates, locations/languages, ad groups, EXACT/PHRASE keywords and negatives, responsive search ads, sitelinks/callouts and explicit client-owned conversion action IDs. Use this instead of preview_create_paused_search for full builds. Use keyword_planning tools first when search-volume research or forecasts are needed; never invent those metrics. Supply exactly one of daily_budget_micros or total_budget_micros. Total budget is a hard campaign-period cap, requires 3 to 90 days, and does not cap each individual day. 1 currency unit = 1,000,000 micros. Requires real URLs, confirmed year/dates, budget, bidding, targeting and EU political-ad declaration; never invent missing facts. Google Search only, presence targeting, AI Max/text customization/URL expansion off. Children are enabled UNDER a paused campaign; no delivery until separate activation. Account-wide automatic assets/recommendations need manual review. Preview does not mutate Google Ads. After human browser approval, execute_approved_plan creates the package, configures campaign-only conversion goals in a second stage, and reads back. Selected custom-goal conversions count for bidding even if secondary. Shared MCC-owned conversions unsupported. On an uncertain result inspect plan_status; never retry creation.",
       "inputSchema": {
         "additionalProperties": false,
         "properties": {
@@ -1173,9 +1173,17 @@
                 "type": "array"
               },
               "daily_budget_micros": {
-                "exclusiveMinimum": 0,
-                "maximum": 1000000000000,
-                "type": "integer"
+                "anyOf": [
+                  {
+                    "exclusiveMinimum": 0,
+                    "maximum": 1000000000000,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
               },
               "end_date": {
                 "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
@@ -1302,11 +1310,23 @@
               "start_date": {
                 "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                 "type": "string"
+              },
+              "total_budget_micros": {
+                "anyOf": [
+                  {
+                    "exclusiveMinimum": 0,
+                    "maximum": 1000000000000,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
               }
             },
             "required": [
               "name",
-              "daily_budget_micros",
               "bidding",
               "start_date",
               "end_date",

@@ -258,6 +258,47 @@ def test_policy_cap_and_cross_action_fields():
         ).check_shape()
 
 
+def test_total_budget_is_exclusive_bounded_and_verified(gateway):
+    proposal = change(daily_budget_micros=None, total_budget_micros=4_500_000_000)
+    policy().check(proposal, before())
+    builder = compile_search(gateway, proposal, before())
+    budget = builder.operations[0].campaign_budget_operation.create
+    assert budget.period.name == "CUSTOM_PERIOD"
+    assert budget.total_amount_micros == 4_500_000_000
+    assert budget.amount_micros == 0
+    assert not budget.explicitly_shared
+    receipt = creation_receipt(proposal, builder, response_for(gateway, builder))
+    objects, _, _ = install_readback(gateway, builder, receipt)
+    assert verify_search(gateway, proposal, before(), receipt)["status"] == "PAUSED"
+    objects["campaign_budget"][0].total_amount_micros += 1
+    with pytest.raises(WriteBlocked, match="total_amount_micros"):
+        verify_search(gateway, proposal, before(), receipt)
+
+    rendered = render_search_review(
+        dict(change=proposal.model_dump(), snapshot=before(), expires_at=2_000_000_000)
+    )
+    assert "Totalbudget för kampanjperioden" in rendered and "4,500.00 SEK" in rendered
+    assert "Genomsnittlig dagsbudget" not in rendered
+
+    with pytest.raises(WriteBlocked, match="average daily ceiling"):
+        policy().check(
+            change(daily_budget_micros=None, total_budget_micros=15_000_000_001),
+            before(),
+        )
+
+    for end_date in ("2030-04-02", "2030-07-01"):
+        with pytest.raises(ValidationError, match="3 to 90"):
+            change(
+                daily_budget_micros=None,
+                total_budget_micros=100_000_000,
+                end_date=end_date,
+            )
+    with pytest.raises(ValidationError, match="exactly one"):
+        change(total_budget_micros=100_000_000)
+    with pytest.raises(ValidationError, match="exactly one"):
+        change(daily_budget_micros=None)
+
+
 @pytest.mark.parametrize(
     "mutation",
     [

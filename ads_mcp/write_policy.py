@@ -229,7 +229,16 @@ class WritePolicy:
             raise WriteBlocked("Activation is disabled for this account.")
         amount = change.amount_micros
         if change.action == "create_search_campaign":
-            amount = change.search_campaign.daily_budget_micros
+            spec = change.search_campaign
+            amount = spec.daily_budget_micros
+            if (
+                spec.total_budget_micros is not None
+                and spec.total_budget_micros
+                > account.max_daily_budget_micros * spec.duration_days()
+            ):
+                raise WriteBlocked(
+                    "The campaign total exceeds the configured average daily ceiling over its scheduled duration."
+                )
         if change.action == "activate":
             amount = snapshot["campaign"]["amount_micros"]
         if amount is not None and amount > account.max_daily_budget_micros:
