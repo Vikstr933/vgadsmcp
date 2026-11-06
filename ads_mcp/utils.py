@@ -150,6 +150,19 @@ def get_googleads_client(
     return _get_googleads_client(login_customer_id=login_customer_id)
 
 
+def google_ads_error_codes(error):
+    """Format bounded protobuf enum codes without backend messages or input data."""
+    codes = []
+    for item in error.failure.errors[:5]:
+        code = getattr(item.error_code, "_pb", item.error_code)
+        field = code.WhichOneof("error_code")
+        if field is not None:
+            values = code.DESCRIPTOR.fields_by_name[field].enum_type.values_by_number
+            value = values.get(getattr(code, field))
+            codes.append(f"{field}:{value.name if value else 'UNKNOWN'}")
+    return ", ".join(codes) or "no error code"
+
+
 def format_output_value(value: Any) -> Any:
     if isinstance(value, proto.Enum):
         return value.name

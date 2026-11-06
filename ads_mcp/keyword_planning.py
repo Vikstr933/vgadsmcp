@@ -355,17 +355,9 @@ def safe_error(error):
     from google.ads.googleads.errors import GoogleAdsException
 
     if isinstance(error, GoogleAdsException):
-        codes = []
-        for e in error.failure.errors[:5]:
-            code = getattr(e.error_code, "_pb", e.error_code)
-            field = code.WhichOneof("error_code")
-            if field is not None:
-                values = code.DESCRIPTOR.fields_by_name[field].enum_type.values_by_number
-                value = values.get(getattr(code, field))
-                codes.append(f"{field}:{value.name if value else 'UNKNOWN'}")
         return (
             "Google Keyword Planner rejected the request: "
-            + (", ".join(codes) or "no error code")
+            + utils.google_ads_error_codes(error)
             + ". Check client/MCC access, targeting, dates and quotas. KeywordPlanIdeaService requires Basic or Standard API access; Explorer is insufficient. No campaign changes were made; no fallback statistics are invented."
         )
     if isinstance(error, PlanningInputError):

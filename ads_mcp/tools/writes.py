@@ -5,6 +5,7 @@ from typing import Literal
 
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
+from google.ads.googleads.errors import GoogleAdsException
 from mcp.types import ToolAnnotations
 
 from ads_mcp.write_policy import Change, WriteBlocked, WritePolicy, principal
@@ -25,6 +26,13 @@ def preview(change):
         return WriteWorkflow().preview(change, owner)
     except WriteBlocked as error:
         raise ToolError(str(error)) from None
+    except GoogleAdsException as error:
+        from ads_mcp.utils import google_ads_error_codes
+
+        raise ToolError(
+            f"Google Ads rejected the preview ({google_ads_error_codes(error)}). "
+            "No live write was sent."
+        ) from None
     except Exception:
         raise ToolError(
             "Preview failed. No live write was sent. Check account access, policy, request values and service configuration."
