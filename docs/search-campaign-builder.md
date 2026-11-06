@@ -61,8 +61,9 @@ av pausade kampanjer. En befintlig dagsbudget kan inte byta budgettyp.
   stängs inte av här; kontrollera dem i Google Ads. Responsiva annonser kombinerar
   fortfarande godkända texter automatiskt.
 - Explicit lista över befintliga, aktiverade konverteringsåtgärder som ägs av
-  kundkontot. Ett nytt anpassat mål knyts till den nya kampanjen, vars standardmål
-  görs icke-budgivande. **Även sekundära åtgärder i ett anpassat mål används för
+  kundkontot. Ett aktiverat anpassat mål med exakt samma åtgärder återanvänds
+  utan ändringar. Annars skapas ett nytt mål. Kampanjens standardmål görs
+  icke-budgivande. **Även sekundära åtgärder i ett anpassat mål används för
   budgivning.** Kontots primärflaggor och befintliga kampanjmål ändras inte.
   Konverteringar som ägs gemensamt av ett MCC stöds inte i denna version.
 
@@ -70,7 +71,7 @@ av pausade kampanjer. En befintlig dagsbudget kan inte byta budgettyp.
 
 Google skapar `CampaignConversionGoal` och `ConversionGoalCampaignConfig`
 automatiskt. Dessa kan uppdateras men inte skapas direkt av klienten.
-Därför skapas hela paketet inklusive ett nytt anpassat mål först i en atomisk
+Därför skapas hela paketet inklusive ett eventuellt nytt anpassat mål först i en atomisk
 `GoogleAdsService.Mutate` med `partial_failure=False`. Kampanjen är alltid `PAUSED`.
 Annonsgrupper och annonser är `ENABLED` under denna pausade förälder, vilket gör
 att de kan börja leverera efter en separat aktivering av kampanjen.

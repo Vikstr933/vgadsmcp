@@ -96,8 +96,17 @@ def render_search_review(plan):
             ]
         )
     )
+    existing_goal = snapshot.get("existing_custom_goal")
+    goal_explanation = (
+        f"Det befintliga målet {escape(existing_goal['name'])} "
+        f"({escape(existing_goal['resource_name'])}) används utan ändringar."
+        if existing_goal
+        else "Endast nedanstående åtgärder väljs i ett nytt anpassat mål för denna kampanj."
+    )
     parts.append(
-        "<h2>Kampanjens konverteringsmål</h2><p>Endast nedanstående åtgärder väljs i ett nytt anpassat mål för denna kampanj. Kontots primära inställningar ändras inte. <strong>Även sekundära åtgärder i ett anpassat mål används för budgivning.</strong> Övriga standardmål stängs av för den nya kampanjen.</p>"
+        "<h2>Kampanjens konverteringsmål</h2><p>"
+        + goal_explanation
+        + " Kontots primära inställningar ändras inte. <strong>Även sekundära åtgärder i ett anpassat mål används för budgivning.</strong> Övriga standardmål stängs av för den nya kampanjen.</p>"
         + table(
             [
                 (

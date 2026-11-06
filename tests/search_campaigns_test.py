@@ -156,7 +156,7 @@ def goal(gateway, campaign, category, enabled=False):
     return row
 
 
-def install_readback(gateway, builder, receipt):
+def install_readback(gateway, builder, receipt, existing_goal=None):
     """Model Google assigning IDs/defaults and serving persisted protobuf resources."""
     objects = {}
     mapping = receipt["mapping"]
@@ -176,6 +176,8 @@ def install_readback(gateway, builder, receipt):
         if kind == "campaign":
             obj.bidding_strategy_type = "MANUAL_CPC"
         objects.setdefault(kind, []).append(obj)
+    if existing_goal:
+        objects["custom_conversion_goal"] = [existing_goal.custom_conversion_goal]
     campaign = receipt["campaign_resource"]
     goals = [goal(gateway, campaign, c) for c in ("PURCHASE", "PAGE_VIEW")]
     config = gateway.client.get_type("GoogleAdsRow")
@@ -464,6 +466,7 @@ def snapshot_rows(gateway):
         goals,
         geos,
         [NS(language_constant=language)],
+        [],
     ]
 
 
@@ -474,6 +477,40 @@ def test_snapshot_resolves_real_names_and_goals(gateway):
     assert state["conversions"] == before()["conversions"]
     assert len(state["locations"]) == 2
     assert state["languages"] == before()["languages"]
+    assert "existing_custom_goal" not in state
+
+
+def test_existing_goal_is_reused_only_for_exact_enabled_match(gateway):
+    rows = snapshot_rows(gateway)
+    selected_action = rows[2][0].conversion_action.resource_name
+    matching = gateway.client.get_type("GoogleAdsRow")
+    goal = matching.custom_conversion_goal
+    goal.resource_name = f"customers/{CID}/customConversionGoals/999"
+    goal.name = "Shared purchase goal"
+    goal.status = "ENABLED"
+    goal.conversion_actions.append(selected_action)
+    extra = copy.deepcopy(matching)
+    extra.custom_conversion_goal.conversion_actions.append(
+        f"customers/{CID}/conversionActions/12345"
+    )
+    removed = copy.deepcopy(matching)
+    removed.custom_conversion_goal.status = "REMOVED"
+    rows[-1] = [extra, removed, matching]
+    gateway.rows = Mock(side_effect=rows)
+    proposal = change()
+    state = snapshot_search(gateway, proposal)
+    assert state["existing_custom_goal"] == dict(
+        resource_name=goal.resource_name, name=goal.name
+    )
+    builder = compile_search(gateway, proposal, state)
+    assert not any(x["kind"] == "custom_conversion_goal" for x in builder.expected)
+    receipt = creation_receipt(proposal, builder, response_for(gateway, builder))
+    assert receipt["custom_goal_resource"] == goal.resource_name
+    install_readback(gateway, builder, receipt, existing_goal=matching)
+    assert verify_search(gateway, proposal, state, receipt)["status"] == "PAUSED"
+    goal.conversion_actions.append(f"customers/{CID}/conversionActions/54321")
+    with pytest.raises(WriteBlocked, match="custom_conversion_goal.conversion_actions"):
+        verify_search(gateway, proposal, state, receipt)
 
 
 @pytest.mark.parametrize(

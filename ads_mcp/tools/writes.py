@@ -52,7 +52,7 @@ def policy_status() -> dict:
         "approval_secret_configured": len(policy.approval_secret) >= 32,
         "creation_status": "PAUSED",
         "conversion_tools_version": "1",
-        "search_campaign_builder_version": "2",
+        "search_campaign_builder_version": "3",
         "conversion_creation": "Native WEBPAGE, ENABLED and secondary; no tags installed. Separate primary/secondary approval. Shared MCC-owned conversions and GA4 imports excluded.",
         "approval": "Separate password-protected browser page; never an MCP approval argument.",
     }

@@ -144,13 +144,41 @@ def snapshot_search(gateway, change):
         l["targetable"] for l in languages
     ):
         blocked("A selected language cannot be targeted.")
-    return dict(
+    snapshot = dict(
         account=account,
         conversions=sorted(chosen, key=lambda r: r["id"]),
         customer_goals=goal_state,
         locations=geos,
         languages=languages,
     )
+    selected_actions = sorted(c["resource_name"] for c in chosen)
+    matching_goals = []
+    for row in gateway.rows(
+        change.customer_id,
+        "SELECT custom_conversion_goal.resource_name, custom_conversion_goal.name, "
+        "custom_conversion_goal.status, custom_conversion_goal.conversion_actions "
+        "FROM custom_conversion_goal WHERE custom_conversion_goal.status = 'ENABLED'",
+    ):
+        goal = row.custom_conversion_goal
+        if (
+            goal.status.name == "ENABLED"
+            and sorted(goal.conversion_actions) == selected_actions
+        ):
+            if not re.fullmatch(
+                rf"customers/{change.customer_id}/customConversionGoals/[0-9]+",
+                goal.resource_name,
+            ):
+                blocked(
+                    "Matching custom conversion goal is outside the client account."
+                )
+            matching_goals.append(
+                dict(resource_name=goal.resource_name, name=goal.name)
+            )
+    if len(matching_goals) > 1:
+        blocked("Multiple enabled custom conversion goals match the selected actions.")
+    if matching_goals:
+        snapshot["existing_custom_goal"] = matching_goals[0]
+    return snapshot
 
 
 class Compiler:
@@ -160,6 +188,7 @@ class Compiler:
         self.next_id = -1
         self.operations = []
         self.expected = []
+        self.reused_goal_resource = None
 
     def resource(self, collection):
         value = f"{self.root}/{collection}/{self.next_id}"
@@ -359,14 +388,20 @@ def compile_search(gateway, change, before):
                 "status": "ENABLED",
             },
         )
-    builder.create(
-        "custom_conversion_goal",
-        {
-            "name": spec.name + " conversions",
-            "status": "ENABLED",
-            "conversion_actions": [c["resource_name"] for c in before["conversions"]],
-        },
-    )
+    existing_goal = before.get("existing_custom_goal")
+    if existing_goal:
+        builder.reused_goal_resource = existing_goal["resource_name"]
+    else:
+        builder.create(
+            "custom_conversion_goal",
+            {
+                "name": spec.name + " conversions",
+                "status": "ENABLED",
+                "conversion_actions": [
+                    c["resource_name"] for c in before["conversions"]
+                ],
+            },
+        )
     if len(builder.operations) > 1000:
         blocked("Too many operations for one approval package.")
     return builder
@@ -409,7 +444,8 @@ def creation_receipt(change, builder, response):
         campaign_resource=next(
             r["resource_name"] for r in resources if r["kind"] == "campaign"
         ),
-        custom_goal_resource=next(
+        custom_goal_resource=builder.reused_goal_resource
+        or next(
             r["resource_name"]
             for r in resources
             if r["kind"] == "custom_conversion_goal"
@@ -500,6 +536,21 @@ def verify_search(gateway, change, before, receipt):
         grouped.setdefault(expected["kind"], []).append(
             (expected, resource["resource_name"])
         )
+    if builder.reused_goal_resource:
+        grouped["custom_conversion_goal"] = [
+            (
+                {
+                    "fields": {
+                        "name": before["existing_custom_goal"]["name"],
+                        "status": "ENABLED",
+                        "conversion_actions": [
+                            c["resource_name"] for c in before["conversions"]
+                        ],
+                    }
+                },
+                builder.reused_goal_resource,
+            )
+        ]
     for kind, items in grouped.items():
         fields = {path for expected, _ in items for path in expected["fields"]}
         fields.add("resource_name")
@@ -514,7 +565,7 @@ def verify_search(gateway, change, before, receipt):
         )
         found = {getattr(r, kind).resource_name: getattr(r, kind) for r in rows}
         if set(found) != {name for _, name in items}:
-            blocked("Read-back is missing created resources. Do not retry creation.")
+            blocked("Read-back is missing expected resources. Do not retry creation.")
         for expected, name in items:
             for path, value in expected["fields"].items():
                 value = (
@@ -567,6 +618,7 @@ def verify_search(gateway, change, before, receipt):
         status="PAUSED",
         resource_count=len(receipt["resources"]),
         resources=receipt["resources"],
+        custom_goal_resource=receipt["custom_goal_resource"],
         conversion_action_ids=change.search_campaign.conversion_action_ids,
         launch_checks_required=[
             "Check account-level automated assets and auto-apply recommendations in Google Ads.",
@@ -578,13 +630,19 @@ def verify_search(gateway, change, before, receipt):
 
 def describe_search(change, before):
     spec = change.search_campaign
+    existing_goal = before.get("existing_custom_goal")
     return dict(
         before="No campaign created by this plan.",
         after=spec.model_dump(),
         status="PAUSED",
         child_status="ENABLED under paused parent: no delivery until separate campaign activation.",
         stages=[
-            "Atomically create budget, paused campaign, targeting, groups, keywords, ads, assets and a new custom conversion goal.",
+            (
+                "Atomically create budget, paused campaign, targeting, groups, keywords, ads and assets. "
+                f"Reuse custom conversion goal {existing_goal['name']} ({existing_goal['resource_name']}) unchanged."
+                if existing_goal
+                else "Atomically create budget, paused campaign, targeting, groups, keywords, ads, assets and a new custom conversion goal."
+            ),
             "Configure campaign-only goals while paused; disable all standard campaign goals and select the approved conversion actions.",
             "Read back every configured field and resource before reporting success.",
         ],
