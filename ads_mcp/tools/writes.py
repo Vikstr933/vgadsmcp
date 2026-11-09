@@ -52,7 +52,7 @@ def policy_status() -> dict:
         "approval_secret_configured": len(policy.approval_secret) >= 32,
         "creation_status": "PAUSED",
         "conversion_tools_version": "1",
-        "search_campaign_builder_version": "3",
+        "search_campaign_builder_version": "4",
         "conversion_creation": "Native WEBPAGE, ENABLED and secondary; no tags installed. Separate primary/secondary approval. Shared MCC-owned conversions and GA4 imports excluded.",
         "approval": "Separate password-protected browser page; never an MCP approval argument.",
     }
@@ -231,4 +231,23 @@ def plan_status(plan_id: str) -> dict:
     except Exception:
         raise ToolError(
             "Plan could not be read. Check persistent storage configuration."
+        ) from None
+
+
+@writes_mcp.tool(
+    annotations=ToolAnnotations(
+        readOnlyHint=False, destructiveHint=False, idempotentHint=True
+    )
+)
+def reconcile_search_plan(plan_id: str) -> dict:
+    """Read back this OAuth user's unresolved Search creation without mutating Google Ads. Release its lock only when saved resources and goals match the approved plan, allowing documented later campaign activation or ad text edits."""
+    try:
+        return WriteWorkflow().reconcile_search_plan(
+            validated_plan_id(plan_id), principal()
+        )
+    except WriteBlocked as error:
+        raise ToolError(str(error)) from None
+    except Exception:
+        raise ToolError(
+            "Read-back could not be confirmed. The account lock remains in place."
         ) from None

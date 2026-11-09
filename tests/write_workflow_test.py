@@ -78,7 +78,8 @@ class MemoryStore:
 
     def transition(self, plan_id, expected, target, owner=None, result=None):
         plan = self.plans[plan_id]
-        if expected != "executing":
+        reconciled = expected == "unknown" and target == "verified"
+        if expected != "executing" and not reconciled:
             check_plan(plan, owner)
         if plan["status"] != expected:
             raise WriteBlocked("Wrong state")
@@ -86,7 +87,8 @@ class MemoryStore:
             if self.lock:
                 raise WriteBlocked("Locked")
             self.lock = plan_id
-        if expected == "executing" and target != "unknown":
+        if reconciled or (expected == "executing" and target != "unknown"):
+            assert self.lock == plan_id
             self.lock = None
         plan["status"] = target
         if result is not None:

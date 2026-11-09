@@ -1586,6 +1586,37 @@
         "type": "object"
       },
       "title": "Writes Preview Update Conversion"
+    },
+    {
+      "_meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      },
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "readOnlyHint": false
+      },
+      "description": "Read back this OAuth user's unresolved Search creation without mutating Google Ads. Release its lock only when saved resources and goals match the approved plan, allowing documented later campaign activation or ad text edits.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "plan_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "plan_id"
+        ],
+        "type": "object"
+      },
+      "name": "writes_reconcile_search_plan",
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Writes Reconcile Search Plan"
     }
   ]
 }

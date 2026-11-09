@@ -68,7 +68,12 @@ class FirestorePlanStore:
             plan = ref.get(transaction=transaction).to_dict()
             if not plan or (owner is not None and plan["owner"] != owner):
                 raise WriteBlocked("Plan not found for this user.")
-            if expected != "executing":
+            reconciled = expected == "unknown" and target == "verified"
+            if reconciled and (owner is None or result is None):
+                raise WriteBlocked(
+                    "Verified read-back and plan ownership are required."
+                )
+            if expected != "executing" and not reconciled:
                 check_plan(plan, owner)
             if plan["status"] != expected:
                 raise WriteBlocked("Plan is no longer in the required state.")
@@ -85,7 +90,7 @@ class FirestorePlanStore:
                 transaction.create(lock_ref, {"plan_id": plan_id})
                 # An uncertain mutation must not be silently forgotten by TTL.
                 updates["delete_after"] = firestore.DELETE_FIELD
-            if expected == "executing" and target != "unknown":
+            if reconciled or (expected == "executing" and target != "unknown"):
                 if not lock or lock["plan_id"] != plan_id:
                     raise WriteBlocked(
                         "Account lock changed; operator reconciliation required."

@@ -133,6 +133,48 @@ class WriteWorkflow:
             if key not in ("owner", "delete_after")
         }
 
+    def reconcile_search_plan(self, plan_id, owner):
+        plan = self.get_plan(plan_id, owner)
+        if plan["change"]["action"] != "create_search_campaign":
+            raise WriteBlocked(
+                "Only complete Search campaign plans can be reconciled here."
+            )
+        if plan["status"] == "verified":
+            return {
+                "status": "already_verified",
+                "plan_id": plan_id,
+                "result": plan["result"],
+            }
+        receipt = plan.get("progress")
+        if plan["status"] != "unknown" or not receipt:
+            raise WriteBlocked(
+                "Reconciliation requires an unresolved plan with saved resource IDs."
+            )
+        review = {
+            key: plan[key]
+            for key in ("customer_id", "change", "snapshot", "review")
+        }
+        if digest(review) != plan["review_digest"]:
+            raise WriteBlocked(
+                "Plan content changed. Keep the account lock for manual reconciliation."
+            )
+        change = Change.model_validate(plan["change"])
+        gateway = self.gateway_factory(change.login_customer_id)
+        from ads_mcp.search_campaigns import verify_search
+
+        result = verify_search(
+            gateway,
+            change,
+            plan["snapshot"],
+            receipt,
+            reconcile_created_at=plan["created_at"],
+        )
+        result["reconciled_by_readback"] = True
+        self.store.transition(
+            plan_id, "unknown", "verified", owner=owner, result=result
+        )
+        return {"status": "verified", "plan_id": plan_id, "result": result}
+
     def execute(self, plan_id, owner):
         self.policy.require_writes()
         plan = self.store.get(plan_id)

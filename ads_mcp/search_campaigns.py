@@ -6,7 +6,7 @@ after the first mutate keeps the existing workflow's unresolved account lock.
 """
 
 import re
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from zoneinfo import ZoneInfo
 
 from ads_mcp.conversion_writes import blocked
@@ -268,7 +268,10 @@ def compile_search(gateway, change, before):
             "MaximizeConversionValue"
         )
     builder.expected[-1]["fields"]["bidding_strategy_type"] = spec.bidding
-    for kind in ("TEXT_ASSET_AUTOMATION", "FINAL_URL_EXPANSION_TEXT_ASSET_AUTOMATION"):
+    for kind in (
+        "TEXT_ASSET_AUTOMATION",
+        "FINAL_URL_EXPANSION_TEXT_ASSET_AUTOMATION",
+    ):
         setting = obj.AssetAutomationSetting()
         setting.asset_automation_type = kind
         setting.asset_automation_status = "OPTED_OUT"
@@ -377,7 +380,8 @@ def compile_search(gateway, change, before):
     for text in spec.callouts:
         asset = builder.resource("assets")
         builder.create(
-            "asset", {"resource_name": asset, "callout_asset.callout_text": text}
+            "asset",
+            {"resource_name": asset, "callout_asset.callout_text": text},
         )
         builder.create(
             "campaign_asset",
@@ -529,8 +533,44 @@ def read_value(obj, path):
     return sorted(x.name if hasattr(x, "name") else x for x in obj)
 
 
-def verify_search(gateway, change, before, receipt):
+def verify_later_edits(gateway, change, before, receipt, created_at, differences):
+    zone = ZoneInfo(before["account"]["time_zone"])
+    now = datetime.now(zone)
+    start = max(datetime.fromtimestamp(created_at, zone), now - timedelta(days=29))
+    rows = gateway.rows(
+        change.customer_id,
+        "SELECT change_event.change_date_time, change_event.change_resource_name, "
+        "change_event.changed_fields FROM change_event "
+        f"WHERE change_event.campaign = '{receipt['campaign_resource']}' "
+        "AND change_event.resource_change_operation = 'UPDATE' "
+        f"AND change_event.change_date_time BETWEEN '{start:%Y-%m-%d %H:%M:%S}' "
+        f"AND '{now:%Y-%m-%d %H:%M:%S}' "
+        "ORDER BY change_event.change_date_time DESC LIMIT 1000",
+    )
+    evidence = {}
+    for row in rows:
+        event = row.change_event
+        for field in event.changed_fields.paths:
+            evidence.setdefault(
+                (event.change_resource_name, field.replace("_", "").lower()),
+                event.change_date_time,
+            )
+    for difference in differences:
+        key = (
+            difference["resource_name"],
+            difference["field"].replace("_", "").lower(),
+        )
+        if key not in evidence:
+            blocked("A mismatch has no matching later Google Ads change event.")
+        difference["change_date_time"] = evidence[key]
+
+
+def verify_search(gateway, change, before, receipt, *, reconcile_created_at=None):
     builder = compile_search(gateway, change, before)
+    if [resource["kind"] for resource in receipt["resources"]] != [
+        expected["kind"] for expected in builder.expected
+    ]:
+        blocked("Read-back receipt does not cover the approved resources.")
     grouped = {}
     for expected, resource in zip(builder.expected, receipt["resources"]):
         grouped.setdefault(expected["kind"], []).append(
@@ -551,6 +591,8 @@ def verify_search(gateway, change, before, receipt):
                 builder.reused_goal_resource,
             )
         ]
+    later_edits = []
+    campaign_status = "PAUSED"
     for kind, items in grouped.items():
         fields = {path for expected, _ in items for path in expected["fields"]}
         fields.add("resource_name")
@@ -579,12 +621,34 @@ def verify_search(gateway, change, before, receipt):
                 if path == "asset_automation_settings":
                     # Other unrelated automation enum entries may be returned.
                     good = all(v in actual for v in value)
+                elif kind == "campaign_budget" and path == "name":
+                    # Google can use the owning campaign's name for a non-shared budget.
+                    good = actual in (value, change.search_campaign.name)
                 else:
                     good = actual == value
-                if not good:
-                    blocked(
-                        f"Read-back mismatch for {kind}.{path}; campaign must remain paused pending reconciliation."
-                    )
+                if good:
+                    continue
+                if reconcile_created_at is not None:
+                    if kind == "campaign" and path == "status" and actual == "ENABLED":
+                        campaign_status = actual
+                        later_edits.append(dict(resource_name=name, field=path))
+                        continue
+                    if kind == "ad_group_ad" and path in (
+                        "ad.responsive_search_ad.headlines",
+                        "ad.responsive_search_ad.descriptions",
+                    ):
+                        ad_id = name.rsplit("~", 1)[-1]
+                        if ad_id.isascii() and ad_id.isdigit():
+                            later_edits.append(
+                                dict(
+                                    resource_name=f"customers/{change.customer_id}/ads/{ad_id}",
+                                    field=path.removeprefix("ad."),
+                                )
+                            )
+                            continue
+                blocked(
+                    f"Read-back mismatch for {kind}.{path}; manual reconciliation required."
+                )
     campaign = receipt["campaign_resource"]
     goals = goal_rows(gateway, change, campaign)
     pairs = {
@@ -612,10 +676,15 @@ def verify_search(gateway, change, before, receipt):
         != receipt["custom_goal_resource"]
     ):
         blocked("Campaign-specific conversion selection did not match approval.")
+    if later_edits:
+        verify_later_edits(
+            gateway, change, before, receipt, reconcile_created_at, later_edits
+        )
     return dict(
         campaign_resource=campaign,
         campaign_id=campaign.split("/")[-1],
-        status="PAUSED",
+        status=campaign_status,
+        later_edits=later_edits,
         resource_count=len(receipt["resources"]),
         resources=receipt["resources"],
         custom_goal_resource=receipt["custom_goal_resource"],

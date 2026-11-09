@@ -85,8 +85,13 @@ Inga automatiska omsändningar görs.
 Om ett anrop förlorar svaret eller steg två/återläsningen misslyckas blir status
 `unknown`, kontolåset behålls och befintliga resurs-ID:n finns under `progress`
 om det första svaret hann sparas. Skapa inte ett nytt försök blint. Läs
-`writes_plan_status`, kontrollera kampanjen och målen i Google Ads och stäm av
-låset enligt rutinen i [safe-writes.md](safe-writes.md). En identisk kampanjtitel
+`writes_plan_status`. Om det finns sparade resurs-ID:n läser
+`writes_reconcile_search_plan` tillbaka kampanjen och målen utan att ändra
+Google Ads. Den släpper låset när resurserna och målen matchar godkännandet.
+Senare aktivering och ändrad annonstext får avvika om Google Ads
+ändringshistorik visar ändringen för respektive resurs och fält.
+Vid kvarstående avvikelse används
+rutinen i [safe-writes.md](safe-writes.md). En identisk kampanjtitel
 blockeras även före skapandet. Detta ersätter inte låset eller manuell avstämning
 efter ett förlorat svar.
 

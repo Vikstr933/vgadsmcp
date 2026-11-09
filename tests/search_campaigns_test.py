@@ -110,7 +110,12 @@ def before():
         ],
         locations=[
             dict(id="2752", name="Sweden", country="SE", status="ENABLED"),
-            dict(id="20300", name="Excluded fixture", country="SE", status="ENABLED"),
+            dict(
+                id="20300",
+                name="Excluded fixture",
+                country="SE",
+                status="ENABLED",
+            ),
         ],
         languages=[dict(id="1015", name="Swedish", targetable=True)],
     )
@@ -271,13 +276,21 @@ def test_total_budget_is_exclusive_bounded_and_verified(gateway):
     assert not budget.explicitly_shared
     receipt = creation_receipt(proposal, builder, response_for(gateway, builder))
     objects, _, _ = install_readback(gateway, builder, receipt)
+    objects["campaign_budget"][0].name = "Unrelated budget"
+    with pytest.raises(WriteBlocked, match="campaign_budget.name"):
+        verify_search(gateway, proposal, before(), receipt)
+    objects["campaign_budget"][0].name = proposal.search_campaign.name
     assert verify_search(gateway, proposal, before(), receipt)["status"] == "PAUSED"
     objects["campaign_budget"][0].total_amount_micros += 1
     with pytest.raises(WriteBlocked, match="total_amount_micros"):
         verify_search(gateway, proposal, before(), receipt)
 
     rendered = render_search_review(
-        dict(change=proposal.model_dump(), snapshot=before(), expires_at=2_000_000_000)
+        dict(
+            change=proposal.model_dump(),
+            snapshot=before(),
+            expires_at=2_000_000_000,
+        )
     )
     assert "Totalbudget för kampanjperioden" in rendered and "4,500.00 SEK" in rendered
     assert "Genomsnittlig dagsbudget" not in rendered
@@ -401,7 +414,11 @@ def test_readback_checks_all_resources_and_goals(gateway):
 def test_review_contains_all_inputs_and_escapes_text():
     proposal = change(name="<script>alert(1)</script>")
     rendered = render_search_review(
-        dict(change=proposal.model_dump(), snapshot=before(), expires_at=2_000_000_000)
+        dict(
+            change=proposal.model_dump(),
+            snapshot=before(),
+            expires_at=2_000_000_000,
+        )
     )
     assert "<script>" not in rendered and "&lt;script&gt;" in rendered
     for text in [
@@ -585,6 +602,65 @@ def test_goal_drift_requires_new_approval(gateway):
     assert store.lock is None
 
 
+def test_reconcile_existing_campaign_checks_readback_and_never_mutates(gateway):
+    proposal = change(daily_budget_micros=None, total_budget_micros=4_500_000_000)
+    state = before()
+    builder = compile_search(gateway, proposal, state)
+    receipt = creation_receipt(proposal, builder, response_for(gateway, builder))
+    store = ProgressStore()
+    workflow = WriteWorkflow(policy(), store, lambda _: gateway)
+    gateway.snapshot = Mock(return_value=state)
+    plan_id = workflow.preview(proposal, "owner")["plan_id"]
+    store.transition(plan_id, "pending_approval", "approved")
+    store.transition(plan_id, "approved", "executing", owner="owner")
+    store.record_progress(plan_id, "owner", receipt)
+    store.transition(plan_id, "executing", "unknown", owner="owner")
+    store.plans[plan_id]["expires_at"] = 1
+
+    with pytest.raises(WriteBlocked, match="not found"):
+        workflow.reconcile_search_plan(plan_id, "other-owner")
+    objects, _, config = install_readback(gateway, builder, receipt)
+    objects["campaign_budget"][0].name = proposal.search_campaign.name
+    config.conversion_goal_campaign_config.custom_conversion_goal = ""
+    with pytest.raises(WriteBlocked, match="selection"):
+        workflow.reconcile_search_plan(plan_id, "owner")
+    assert store.lock == plan_id and store.get(plan_id)["status"] == "unknown"
+
+    config.conversion_goal_campaign_config.custom_conversion_goal = receipt[
+        "custom_goal_resource"
+    ]
+    campaign = objects["campaign"][0]
+    campaign.status = "ENABLED"
+    query_rows = gateway.rows.side_effect
+    events = []
+
+    def rows(customer, query):
+        if " FROM change_event " in query:
+            return events
+        return query_rows(customer, query)
+
+    gateway.rows.side_effect = rows
+    with pytest.raises(WriteBlocked, match="no matching later"):
+        workflow.reconcile_search_plan(plan_id, "owner")
+    assert store.lock == plan_id
+    event = gateway.client.get_type("GoogleAdsRow").change_event
+    event.change_resource_name = receipt["campaign_resource"]
+    event.change_date_time = "2030-03-27 14:43:10"
+    event.changed_fields.paths.append("status")
+    events.append(NS(change_event=event))
+
+    result = workflow.reconcile_search_plan(plan_id, "owner")
+    assert result["status"] == "verified" and result["result"]["reconciled_by_readback"]
+    assert result["result"]["status"] == "ENABLED"
+    assert result["result"]["later_edits"][0]["field"] == "status"
+    assert store.lock is None
+    assert (
+        workflow.reconcile_search_plan(plan_id, "owner")["status"] == "already_verified"
+    )
+    assert gateway.service.mutate.call_count == 1
+    assert gateway.service.mutate.call_args.kwargs["request"].validate_only
+
+
 @pytest.mark.parametrize("failure", [None, "goals", "readback", "lost_response"])
 def test_workflow_partial_failure_retains_receipt_and_lock(gateway, failure):
     proposal = change()
@@ -594,7 +670,7 @@ def test_workflow_partial_failure_retains_receipt_and_lock(gateway, failure):
     workflow = WriteWorkflow(policy(), store, lambda _: gateway)
     gateway.snapshot = Mock(side_effect=lambda _: copy.deepcopy(before()))
     gateway.mutate = Mock(
-        side_effect=lambda *a, validate_only: response if not validate_only else None
+        side_effect=lambda *a, validate_only: (response if not validate_only else None)
     )
     gateway.verify = Mock(return_value={"status": "PAUSED"})
     plan_id = workflow.preview(proposal, "owner")["plan_id"]
