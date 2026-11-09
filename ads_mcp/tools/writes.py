@@ -12,6 +12,7 @@ from ads_mcp.write_policy import Change, WriteBlocked, WritePolicy, principal
 from ads_mcp.write_workflow import WriteWorkflow
 from ads_mcp.conversion_writes import ConversionSettings
 from ads_mcp.search_campaign_schema import SearchCampaign
+from ads_mcp.pmax_campaign_schema import PMaxCampaign
 
 writes_mcp = FastMCP("writes")
 PREVIEW = ToolAnnotations(
@@ -53,6 +54,7 @@ def policy_status() -> dict:
         "creation_status": "PAUSED",
         "conversion_tools_version": "1",
         "search_campaign_builder_version": "4",
+        "pmax_campaign_builder_version": "1",
         "conversion_creation": "Native WEBPAGE, ENABLED and secondary; no tags installed. Separate primary/secondary approval. Shared MCC-owned conversions and GA4 imports excluded.",
         "approval": "Separate password-protected browser page; never an MCP approval argument.",
     }
@@ -154,6 +156,25 @@ def validated_plan_id(plan_id):
 
 
 @writes_mcp.tool(annotations=PREVIEW)
+def preview_create_pmax_campaign(
+    customer_id: str,
+    campaign: PMaxCampaign,
+    eu_political_advertising: Literal["contains", "does_not_contain"],
+    login_customer_id: str | None = None,
+) -> dict:
+    """Validate a complete PAUSED standard Performance Max campaign for purchases, registrations or leads. Select client-owned conversion actions and existing Ads asset IDs for images, logo and any YouTube videos. Discover them with search_search on asset. Supply approved text, URL, dates, targeting and one budget (1 currency unit = 1,000,000 micros). Explicitly choose whether to accept possible Google-generated video; ask the owner if no video assets are available. Disables URL expansion, text customization and specified image/video enhancements. No Merchant Center feed. After independent browser approval, execute_approved_plan creates paused and verifies the campaign. For an uncertain write with saved IDs, use reconcile_pmax_plan."""
+    return preview(
+        Change(
+            action="create_pmax_campaign",
+            customer_id=customer_id,
+            login_customer_id=login_customer_id,
+            eu_political_advertising=eu_political_advertising,
+            pmax_campaign=campaign,
+        )
+    )
+
+
+@writes_mcp.tool(annotations=PREVIEW)
 def preview_create_conversion(
     customer_id: str,
     settings: ConversionSettings,
@@ -244,6 +265,25 @@ def reconcile_search_plan(plan_id: str) -> dict:
     try:
         return WriteWorkflow().reconcile_search_plan(
             validated_plan_id(plan_id), principal()
+        )
+    except WriteBlocked as error:
+        raise ToolError(str(error)) from None
+    except Exception:
+        raise ToolError(
+            "Read-back could not be confirmed. The account lock remains in place."
+        ) from None
+
+
+@writes_mcp.tool(
+    annotations=ToolAnnotations(
+        readOnlyHint=False, destructiveHint=False, idempotentHint=True
+    )
+)
+def reconcile_pmax_plan(plan_id: str) -> dict:
+    """Verify the saved resources of this OAuth user's unresolved standard PMax creation. Releases its own lock only after a successful read-back. Sends no Google Ads mutations."""
+    try:
+        return WriteWorkflow().reconcile_campaign_plan(
+            validated_plan_id(plan_id), principal(), "create_pmax_campaign"
         )
     except WriteBlocked as error:
         raise ToolError(str(error)) from None

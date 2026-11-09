@@ -986,6 +986,252 @@
         "idempotentHint": false,
         "readOnlyHint": false
       },
+      "description": "Validate a complete PAUSED standard Performance Max campaign for purchases, registrations or leads. Select client-owned conversion actions and existing Ads asset IDs for images, logo and any YouTube videos. Discover them with search_search on asset. Supply approved text, URL, dates, targeting and one budget (1 currency unit = 1,000,000 micros). Explicitly choose whether to accept possible Google-generated video; ask the owner if no video assets are available. Disables URL expansion, text customization and specified image/video enhancements. No Merchant Center feed. After independent browser approval, execute_approved_plan creates paused and verifies the campaign. For an uncertain write with saved IDs, use reconcile_pmax_plan.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "campaign": {
+            "additionalProperties": false,
+            "properties": {
+              "allow_auto_video": {
+                "type": "boolean"
+              },
+              "asset_group_name": {
+                "maxLength": 100,
+                "minLength": 1,
+                "type": "string"
+              },
+              "bidding": {
+                "enum": [
+                  "MAXIMIZE_CONVERSIONS",
+                  "MAXIMIZE_CONVERSION_VALUE"
+                ],
+                "type": "string"
+              },
+              "business_name": {
+                "maxLength": 25,
+                "minLength": 1,
+                "type": "string"
+              },
+              "conversion_action_ids": {
+                "items": {
+                  "pattern": "^[0-9]{1,20}$",
+                  "type": "string"
+                },
+                "maxItems": 20,
+                "minItems": 1,
+                "type": "array"
+              },
+              "daily_budget_micros": {
+                "anyOf": [
+                  {
+                    "exclusiveMinimum": 0,
+                    "maximum": 1000000000000,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              },
+              "descriptions": {
+                "items": {
+                  "maxLength": 90,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 5,
+                "minItems": 2,
+                "type": "array"
+              },
+              "end_date": {
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                "type": "string"
+              },
+              "excluded_geo_target_ids": {
+                "items": {
+                  "pattern": "^[0-9]{1,20}$",
+                  "type": "string"
+                },
+                "maxItems": 30,
+                "type": "array"
+              },
+              "final_url": {
+                "maxLength": 2048,
+                "type": "string"
+              },
+              "final_url_suffix": {
+                "anyOf": [
+                  {
+                    "maxLength": 1024,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              },
+              "geo_target_ids": {
+                "items": {
+                  "pattern": "^[0-9]{1,20}$",
+                  "type": "string"
+                },
+                "maxItems": 30,
+                "minItems": 1,
+                "type": "array"
+              },
+              "headlines": {
+                "items": {
+                  "maxLength": 30,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 15,
+                "minItems": 3,
+                "type": "array"
+              },
+              "landscape_image_asset_ids": {
+                "items": {
+                  "pattern": "^[0-9]{1,20}$",
+                  "type": "string"
+                },
+                "maxItems": 20,
+                "minItems": 1,
+                "type": "array"
+              },
+              "language_ids": {
+                "items": {
+                  "pattern": "^[0-9]{1,20}$",
+                  "type": "string"
+                },
+                "maxItems": 10,
+                "minItems": 1,
+                "type": "array"
+              },
+              "logo_asset_id": {
+                "pattern": "^[0-9]{1,20}$",
+                "type": "string"
+              },
+              "long_headlines": {
+                "items": {
+                  "maxLength": 90,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 5,
+                "minItems": 1,
+                "type": "array"
+              },
+              "name": {
+                "maxLength": 100,
+                "minLength": 1,
+                "type": "string"
+              },
+              "square_image_asset_ids": {
+                "items": {
+                  "pattern": "^[0-9]{1,20}$",
+                  "type": "string"
+                },
+                "maxItems": 20,
+                "minItems": 1,
+                "type": "array"
+              },
+              "start_date": {
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                "type": "string"
+              },
+              "total_budget_micros": {
+                "anyOf": [
+                  {
+                    "exclusiveMinimum": 0,
+                    "maximum": 1000000000000,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              },
+              "video_asset_ids": {
+                "items": {
+                  "pattern": "^[0-9]{1,20}$",
+                  "type": "string"
+                },
+                "maxItems": 15,
+                "type": "array"
+              }
+            },
+            "required": [
+              "name",
+              "bidding",
+              "start_date",
+              "end_date",
+              "geo_target_ids",
+              "language_ids",
+              "conversion_action_ids",
+              "asset_group_name",
+              "final_url",
+              "business_name",
+              "logo_asset_id",
+              "landscape_image_asset_ids",
+              "square_image_asset_ids",
+              "allow_auto_video",
+              "headlines",
+              "long_headlines",
+              "descriptions"
+            ],
+            "type": "object"
+          },
+          "customer_id": {
+            "type": "string"
+          },
+          "eu_political_advertising": {
+            "enum": [
+              "contains",
+              "does_not_contain"
+            ],
+            "type": "string"
+          },
+          "login_customer_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "customer_id",
+          "campaign",
+          "eu_political_advertising"
+        ],
+        "type": "object"
+      },
+      "name": "writes_preview_create_pmax_campaign",
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Writes Preview Create Pmax Campaign"
+    },
+    {
+      "_meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      },
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "readOnlyHint": false
+      },
       "description": "Preview a COMPLETE PAUSED Search campaign: budget, dates, locations/languages, ad groups, EXACT/PHRASE keywords and negatives, responsive search ads, sitelinks/callouts and explicit client-owned conversion action IDs. Use this instead of preview_create_paused_search for full builds. Use keyword_planning tools first when search-volume research or forecasts are needed; never invent those metrics. Supply exactly one of daily_budget_micros or total_budget_micros. Total budget is a hard campaign-period cap, requires 3 to 90 days, and does not cap each individual day. 1 currency unit = 1,000,000 micros. Requires real URLs, confirmed year/dates, budget, bidding, targeting and EU political-ad declaration; never invent missing facts. Google Search only, presence targeting, AI Max/text customization/URL expansion off. Children are enabled UNDER a paused campaign; no delivery until separate activation. Account-wide automatic assets/recommendations need manual review. Preview does not mutate Google Ads. After human browser approval, execute_approved_plan creates the package, configures campaign-only conversion goals in a second stage, and reads back. Selected custom-goal conversions count for bidding even if secondary. Shared MCC-owned conversions unsupported. On an uncertain result inspect plan_status; never retry creation.",
       "inputSchema": {
         "additionalProperties": false,
@@ -1586,6 +1832,37 @@
         "type": "object"
       },
       "title": "Writes Preview Update Conversion"
+    },
+    {
+      "_meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      },
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "readOnlyHint": false
+      },
+      "description": "Verify the saved resources of this OAuth user's unresolved standard PMax creation. Releases its own lock only after a successful read-back. Sends no Google Ads mutations.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "plan_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "plan_id"
+        ],
+        "type": "object"
+      },
+      "name": "writes_reconcile_pmax_plan",
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Writes Reconcile Pmax Plan"
     },
     {
       "_meta": {

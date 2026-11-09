@@ -1,4 +1,4 @@
-"""Compile bounded Search packages and verify every configured resource.
+"""Compile bounded campaign packages and verify every configured resource.
 
 Creation is one atomic mutate. System-generated conversion goal objects are
 configured in a second mutate while the new campaign remains PAUSED. A failure
@@ -12,8 +12,8 @@ from zoneinfo import ZoneInfo
 from ads_mcp.conversion_writes import blocked
 
 
-def snapshot_search(gateway, change):
-    spec = change.search_campaign
+def snapshot_campaign_package(gateway, change):
+    spec = change.campaign_package
     customers = gateway.rows(
         change.customer_id,
         "SELECT customer.id, customer.descriptive_name, customer.currency_code, customer.time_zone, customer.manager, customer.status, customer.conversion_tracking_setting.google_ads_conversion_customer FROM customer",
@@ -213,9 +213,8 @@ class Compiler:
         return obj
 
 
-def compile_search(gateway, change, before):
-    spec = change.search_campaign
-    builder = Compiler(gateway.client, change.customer_id)
+def campaign_fields(builder, change, channel):
+    spec = change.campaign_package
     budget = builder.resource("campaignBudgets")
     campaign = builder.resource("campaigns")
     budget_amount = (
@@ -237,49 +236,50 @@ def compile_search(gateway, change, before):
         "resource_name": campaign,
         "name": spec.name,
         "status": "PAUSED",
-        "advertising_channel_type": "SEARCH",
+        "advertising_channel_type": channel,
         "campaign_budget": budget,
-        "network_settings.target_google_search": True,
-        "network_settings.target_search_network": False,
-        "network_settings.target_content_network": False,
-        "network_settings.target_partner_search_network": False,
         "geo_target_type_setting.positive_geo_target_type": "PRESENCE",
         "geo_target_type_setting.negative_geo_target_type": "PRESENCE",
         "start_date_time": spec.start_date + " 00:00:00",
         "end_date_time": spec.end_date + " 23:59:59",
-        "ai_max_setting.enable_ai_max": False,
         "contains_eu_political_advertising": (
             "CONTAINS_EU_POLITICAL_ADVERTISING"
             if change.eu_political_advertising == "contains"
             else "DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING"
         ),
-        # Explicitly avoid inheriting account sitelinks/callouts in this package.
-        "excluded_parent_asset_field_types": ["SITELINK", "CALLOUT"],
     }
     if spec.final_url_suffix:
         fields["final_url_suffix"] = spec.final_url_suffix
-    obj = builder.create("campaign", fields)
-    if spec.bidding == "MANUAL_CPC":
-        obj.manual_cpc = gateway.client.get_type("ManualCpc")
-    elif spec.bidding == "MAXIMIZE_CONVERSIONS":
-        obj.maximize_conversions = gateway.client.get_type("MaximizeConversions")
+    return fields
+
+
+def set_campaign_bidding(builder, obj, bidding, automation_types):
+    if bidding == "MANUAL_CPC":
+        obj.manual_cpc = builder.client.get_type("ManualCpc")
+    elif bidding == "MAXIMIZE_CONVERSIONS":
+        obj.maximize_conversions = builder.client.get_type("MaximizeConversions")
     else:
-        obj.maximize_conversion_value = gateway.client.get_type(
+        obj.maximize_conversion_value = builder.client.get_type(
             "MaximizeConversionValue"
         )
-    builder.expected[-1]["fields"]["bidding_strategy_type"] = spec.bidding
-    for kind in (
-        "TEXT_ASSET_AUTOMATION",
-        "FINAL_URL_EXPANSION_TEXT_ASSET_AUTOMATION",
-    ):
+    builder.expected[-1]["fields"]["bidding_strategy_type"] = bidding
+    for kind in automation_types:
         setting = obj.AssetAutomationSetting()
         setting.asset_automation_type = kind
         setting.asset_automation_status = "OPTED_OUT"
         obj.asset_automation_settings.append(setting)
     builder.expected[-1]["fields"]["asset_automation_settings"] = [
-        ("TEXT_ASSET_AUTOMATION", "OPTED_OUT"),
-        ("FINAL_URL_EXPANSION_TEXT_ASSET_AUTOMATION", "OPTED_OUT"),
+        (kind, "OPTED_OUT") for kind in automation_types
     ]
+
+
+TEXT_AUTOMATION = (
+    "TEXT_ASSET_AUTOMATION",
+    "FINAL_URL_EXPANSION_TEXT_ASSET_AUTOMATION",
+)
+
+
+def add_targeting(builder, spec, campaign):
     for ids, negative in (
         (spec.geo_target_ids, False),
         (spec.excluded_geo_target_ids, True),
@@ -301,6 +301,26 @@ def compile_search(gateway, change, before):
                 "language.language_constant": f"languageConstants/{language}",
             },
         )
+
+
+def compile_search(gateway, change, before):
+    spec = change.search_campaign
+    builder = Compiler(gateway.client, change.customer_id)
+    fields = campaign_fields(builder, change, "SEARCH")
+    fields.update(
+        {
+            "network_settings.target_google_search": True,
+            "network_settings.target_search_network": False,
+            "network_settings.target_content_network": False,
+            "network_settings.target_partner_search_network": False,
+            "ai_max_setting.enable_ai_max": False,
+            "excluded_parent_asset_field_types": ["SITELINK", "CALLOUT"],
+        }
+    )
+    obj = builder.create("campaign", fields)
+    set_campaign_bidding(builder, obj, spec.bidding, TEXT_AUTOMATION)
+    campaign = fields["resource_name"]
+    add_targeting(builder, spec, campaign)
     for keyword in spec.negative_keywords:
         builder.create(
             "campaign_criterion",
@@ -392,6 +412,13 @@ def compile_search(gateway, change, before):
                 "status": "ENABLED",
             },
         )
+    add_custom_goal(builder, spec, before)
+    if len(builder.operations) > 1000:
+        blocked("Too many operations for one approval package.")
+    return builder
+
+
+def add_custom_goal(builder, spec, before):
     existing_goal = before.get("existing_custom_goal")
     if existing_goal:
         builder.reused_goal_resource = existing_goal["resource_name"]
@@ -406,9 +433,14 @@ def compile_search(gateway, change, before):
                 ],
             },
         )
-    if len(builder.operations) > 1000:
-        blocked("Too many operations for one approval package.")
-    return builder
+
+
+def compile_package(gateway, change, before):
+    if change.action == "create_pmax_campaign":
+        from ads_mcp.pmax_campaigns import compile_pmax
+
+        return compile_pmax(gateway, change, before)
+    return compile_search(gateway, change, before)
 
 
 COLLECTIONS = {
@@ -419,6 +451,8 @@ COLLECTIONS = {
     "ad_group_criterion": "adGroupCriteria",
     "ad_group_ad": "adGroupAds",
     "asset": "assets",
+    "asset_group": "assetGroups",
+    "asset_group_asset": "assetGroupAssets",
     "campaign_asset": "campaignAssets",
     "custom_conversion_goal": "customConversionGoals",
 }
@@ -466,7 +500,9 @@ def goal_rows(gateway, change, campaign_resource):
     )
 
 
-def configure_search_goals(gateway, change, before, receipt, before_write=lambda: None):
+def configure_campaign_goals(
+    gateway, change, before, receipt, before_write=lambda: None
+):
     campaign = receipt["campaign_resource"]
     rows = goal_rows(gateway, change, campaign)
     expected = {(g["category"], g["origin"]) for g in before["customer_goals"]}
@@ -565,8 +601,11 @@ def verify_later_edits(gateway, change, before, receipt, created_at, differences
         difference["change_date_time"] = evidence[key]
 
 
-def verify_search(gateway, change, before, receipt, *, reconcile_created_at=None):
-    builder = compile_search(gateway, change, before)
+def verify_campaign_package(
+    gateway, change, before, receipt, *, reconcile_created_at=None
+):
+    spec = change.campaign_package
+    builder = compile_package(gateway, change, before)
     if [resource["kind"] for resource in receipt["resources"]] != [
         expected["kind"] for expected in builder.expected
     ]:
@@ -623,7 +662,7 @@ def verify_search(gateway, change, before, receipt, *, reconcile_created_at=None
                     good = all(v in actual for v in value)
                 elif kind == "campaign_budget" and path == "name":
                     # Google can use the owning campaign's name for a non-shared budget.
-                    good = actual in (value, change.search_campaign.name)
+                    good = actual in (value, spec.name)
                 else:
                     good = actual == value
                 if good:
@@ -688,7 +727,7 @@ def verify_search(gateway, change, before, receipt, *, reconcile_created_at=None
         resource_count=len(receipt["resources"]),
         resources=receipt["resources"],
         custom_goal_resource=receipt["custom_goal_resource"],
-        conversion_action_ids=change.search_campaign.conversion_action_ids,
+        conversion_action_ids=spec.conversion_action_ids,
         launch_checks_required=[
             "Check account-level automated assets and auto-apply recommendations in Google Ads.",
             "Check landing pages, event dates, billing, conversion measurement and ad policy review.",

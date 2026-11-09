@@ -52,6 +52,10 @@ def csrf_token(plan, secret):
 
 def render_review(plan):
     """Show currency amounts and before/after rather than protobuf/JSON internals."""
+    if plan["change"]["action"] == "create_pmax_campaign":
+        from ads_mcp.pmax_campaign_review import render_pmax_review
+
+        return render_pmax_review(plan)
     if plan["change"]["action"] == "create_search_campaign":
         from ads_mcp.search_campaign_review import render_search_review
 
@@ -205,11 +209,11 @@ async def approval_page(request: Request):
         rendered = render_review(plan)
         validation_note = (
             "Google har validerat skapandet utan att genomföra det. Kampanjmålen kan valideras och ställas in först efter att den pausade kampanjen skapats. Om detta steg misslyckas behålls kampanjen pausad och ärendet låses för manuell kontroll."
-            if plan["change"]["action"] == "create_search_campaign"
+            if plan["change"]["action"] in ("create_search_campaign", "create_pmax_campaign")
             else "Google har validerat förslaget utan att genomföra det."
         )
         activation = plan["change"]["action"] == "activate"
-        spec = plan["change"].get("search_campaign") or {}
+        spec = plan["change"].get("search_campaign") or plan["change"].get("pmax_campaign") or {}
         budget_note = (
             "Totalbudgeten är kostnadstaket för hela kampanjperioden. Googles kostnad per dag kan variera."
             if spec.get("total_budget_micros") is not None

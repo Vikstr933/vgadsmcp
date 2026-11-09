@@ -13,9 +13,9 @@ from ads_mcp.search_campaign_schema import SearchCampaign
 from ads_mcp.search_campaigns import (
     compile_search,
     creation_receipt,
-    configure_search_goals,
-    verify_search,
-    snapshot_search,
+    configure_campaign_goals,
+    verify_campaign_package,
+    snapshot_campaign_package,
     COLLECTIONS,
 )
 from ads_mcp.search_campaign_review import render_search_review
@@ -278,12 +278,15 @@ def test_total_budget_is_exclusive_bounded_and_verified(gateway):
     objects, _, _ = install_readback(gateway, builder, receipt)
     objects["campaign_budget"][0].name = "Unrelated budget"
     with pytest.raises(WriteBlocked, match="campaign_budget.name"):
-        verify_search(gateway, proposal, before(), receipt)
+        verify_campaign_package(gateway, proposal, before(), receipt)
     objects["campaign_budget"][0].name = proposal.search_campaign.name
-    assert verify_search(gateway, proposal, before(), receipt)["status"] == "PAUSED"
+    assert (
+        verify_campaign_package(gateway, proposal, before(), receipt)["status"]
+        == "PAUSED"
+    )
     objects["campaign_budget"][0].total_amount_micros += 1
     with pytest.raises(WriteBlocked, match="total_amount_micros"):
-        verify_search(gateway, proposal, before(), receipt)
+        verify_campaign_package(gateway, proposal, before(), receipt)
 
     rendered = render_search_review(
         dict(
@@ -366,7 +369,7 @@ def test_second_stage_changes_only_new_campaign_goals(gateway):
     receipt = creation_receipt(proposal, builder, response_for(gateway, builder))
     objects, _, _ = install_readback(gateway, builder, receipt)
     check = Mock()
-    configure_search_goals(gateway, proposal, before(), receipt, before_write=check)
+    configure_campaign_goals(gateway, proposal, before(), receipt, before_write=check)
     assert check.call_count == 2
     calls = gateway.service.mutate.call_args_list
     assert [c.kwargs["request"].validate_only for c in calls] == [True, False]
@@ -384,7 +387,7 @@ def test_second_stage_changes_only_new_campaign_goals(gateway):
     objects["campaign"][0].status = "ENABLED"
     gateway.service.mutate.reset_mock()
     with pytest.raises(WriteBlocked, match="no longer paused"):
-        configure_search_goals(gateway, proposal, before(), receipt)
+        configure_campaign_goals(gateway, proposal, before(), receipt)
     gateway.service.mutate.assert_not_called()
 
 
@@ -393,22 +396,22 @@ def test_readback_checks_all_resources_and_goals(gateway):
     builder = compile_search(gateway, proposal, before())
     receipt = creation_receipt(proposal, builder, response_for(gateway, builder))
     objects, goals, config = install_readback(gateway, builder, receipt)
-    result = verify_search(gateway, proposal, before(), receipt)
+    result = verify_campaign_package(gateway, proposal, before(), receipt)
     assert result["status"] == "PAUSED"
     assert result["resource_count"] == len(builder.operations)
     objects["ad_group_ad"][0].ad.responsive_search_ad.headlines[
         0
     ].text = "Changed externally"
     with pytest.raises(WriteBlocked, match="headlines"):
-        verify_search(gateway, proposal, before(), receipt)
+        verify_campaign_package(gateway, proposal, before(), receipt)
     objects, goals, config = install_readback(gateway, builder, receipt)
     goals[0].campaign_conversion_goal.biddable = True
     with pytest.raises(WriteBlocked, match="unintended"):
-        verify_search(gateway, proposal, before(), receipt)
+        verify_campaign_package(gateway, proposal, before(), receipt)
     goals[0].campaign_conversion_goal.biddable = False
     config.conversion_goal_campaign_config.goal_config_level = "CUSTOMER"
     with pytest.raises(WriteBlocked, match="selection"):
-        verify_search(gateway, proposal, before(), receipt)
+        verify_campaign_package(gateway, proposal, before(), receipt)
 
 
 def test_review_contains_all_inputs_and_escapes_text():
@@ -489,7 +492,7 @@ def snapshot_rows(gateway):
 
 def test_snapshot_resolves_real_names_and_goals(gateway):
     gateway.rows = Mock(side_effect=snapshot_rows(gateway))
-    state = snapshot_search(gateway, change())
+    state = snapshot_campaign_package(gateway, change())
     assert state["account"] == before()["account"]
     assert state["conversions"] == before()["conversions"]
     assert len(state["locations"]) == 2
@@ -515,7 +518,7 @@ def test_existing_goal_is_reused_only_for_exact_enabled_match(gateway):
     rows[-1] = [extra, removed, matching]
     gateway.rows = Mock(side_effect=rows)
     proposal = change()
-    state = snapshot_search(gateway, proposal)
+    state = snapshot_campaign_package(gateway, proposal)
     assert state["existing_custom_goal"] == dict(
         resource_name=goal.resource_name, name=goal.name
     )
@@ -524,10 +527,12 @@ def test_existing_goal_is_reused_only_for_exact_enabled_match(gateway):
     receipt = creation_receipt(proposal, builder, response_for(gateway, builder))
     assert receipt["custom_goal_resource"] == goal.resource_name
     install_readback(gateway, builder, receipt, existing_goal=matching)
-    assert verify_search(gateway, proposal, state, receipt)["status"] == "PAUSED"
+    assert (
+        verify_campaign_package(gateway, proposal, state, receipt)["status"] == "PAUSED"
+    )
     goal.conversion_actions.append(f"customers/{CID}/conversionActions/54321")
     with pytest.raises(WriteBlocked, match="custom_conversion_goal.conversion_actions"):
-        verify_search(gateway, proposal, state, receipt)
+        verify_campaign_package(gateway, proposal, state, receipt)
 
 
 @pytest.mark.parametrize(
@@ -682,7 +687,7 @@ def test_workflow_partial_failure_retains_receipt_and_lock(gateway, failure):
     if failure == "readback":
         gateway.verify.side_effect = RuntimeError()
     with patch(
-        "ads_mcp.search_campaigns.configure_search_goals",
+        "ads_mcp.search_campaigns.configure_campaign_goals",
         side_effect=RuntimeError() if failure == "goals" else None,
     ) as configure:
         if failure:

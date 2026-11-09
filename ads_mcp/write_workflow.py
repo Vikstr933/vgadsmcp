@@ -9,6 +9,10 @@ from ads_mcp.write_gateway import GoogleAdsWriteGateway
 
 
 def describe(change, before):
+    if change.action == "create_pmax_campaign":
+        from ads_mcp.pmax_campaigns import describe_pmax
+
+        return describe_pmax(change, before)
     if change.action == "create_search_campaign":
         from ads_mcp.search_campaigns import describe_search
 
@@ -134,10 +138,13 @@ class WriteWorkflow:
         }
 
     def reconcile_search_plan(self, plan_id, owner):
+        return self.reconcile_campaign_plan(plan_id, owner, "create_search_campaign")
+
+    def reconcile_campaign_plan(self, plan_id, owner, action):
         plan = self.get_plan(plan_id, owner)
-        if plan["change"]["action"] != "create_search_campaign":
+        if plan["change"]["action"] != action:
             raise WriteBlocked(
-                "Only complete Search campaign plans can be reconciled here."
+                "Use the reconciliation tool for this campaign type."
             )
         if plan["status"] == "verified":
             return {
@@ -160,9 +167,9 @@ class WriteWorkflow:
             )
         change = Change.model_validate(plan["change"])
         gateway = self.gateway_factory(change.login_customer_id)
-        from ads_mcp.search_campaigns import verify_search
+        from ads_mcp.search_campaigns import verify_campaign_package
 
-        result = verify_search(
+        result = verify_campaign_package(
             gateway,
             change,
             plan["snapshot"],
@@ -217,20 +224,20 @@ class WriteWorkflow:
                 )
             sent_write = True
             response = gateway.mutate(change, current, validate_only=False)
-            if change.action == "create_search_campaign":
+            if change.campaign_package is not None:
                 from ads_mcp.search_campaigns import (
-                    compile_search,
+                    compile_package,
                     creation_receipt,
-                    configure_search_goals,
+                    configure_campaign_goals,
                 )
 
                 response = creation_receipt(
-                    change, compile_search(gateway, change, current), response
+                    change, compile_package(gateway, change, current), response
                 )
                 # Persist IDs before stage two: failures must be reconciled, never recreated.
                 self.store.record_progress(plan_id, owner, response)
                 check_plan(plan, owner)
-                configure_search_goals(
+                configure_campaign_goals(
                     gateway,
                     change,
                     current,

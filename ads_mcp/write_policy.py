@@ -10,6 +10,7 @@ from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from ads_mcp.search_campaign_schema import SearchCampaign
+from ads_mcp.pmax_campaign_schema import PMaxCampaign
 from ads_mcp.conversion_writes import (
     ConversionSettings,
     check_conversion_shape,
@@ -29,6 +30,7 @@ class Change(BaseModel):
         "set_budget",
         "create_paused_search",
         "create_search_campaign",
+        "create_pmax_campaign",
         "activate",
         "create_conversion",
         "update_conversion",
@@ -38,6 +40,7 @@ class Change(BaseModel):
     login_customer_id: str | None = None
     campaign_id: str | None = None
     search_campaign: SearchCampaign | None = None
+    pmax_campaign: PMaxCampaign | None = None
     conversion_action_id: str | None = None
     conversion_settings: ConversionSettings | None = None
     primary_for_goal: bool | None = None
@@ -68,9 +71,17 @@ class Change(BaseModel):
             raise ValueError("Campaign name must be printable and non-empty.")
         return value
 
-    def check_shape(self):
+    @property
+    def campaign_package(self):
         if self.action == "create_search_campaign":
-            if self.search_campaign is None or self.eu_political_advertising is None:
+            return self.search_campaign
+        if self.action == "create_pmax_campaign":
+            return self.pmax_campaign
+        return None
+
+    def check_shape(self):
+        if self.action in ("create_search_campaign", "create_pmax_campaign"):
+            if self.campaign_package is None or self.eu_political_advertising is None:
                 raise WriteBlocked(
                     "A complete campaign and EU political-ad declaration are required."
                 )
@@ -84,14 +95,14 @@ class Change(BaseModel):
                     self.conversion_settings,
                     self.primary_for_goal,
                 )
-            ):
+            ) or (self.search_campaign is not None and self.pmax_campaign is not None):
                 raise WriteBlocked(
                     "Do not mix campaign-package inputs with other changes."
                 )
             return
-        if self.search_campaign is not None:
+        if self.search_campaign is not None or self.pmax_campaign is not None:
             raise WriteBlocked(
-                "Campaign packages are only accepted for create_search_campaign."
+                "Campaign packages require the corresponding campaign creation action."
             )
         if self.action in (
             "create_conversion",
@@ -228,8 +239,8 @@ class WritePolicy:
         if change.action == "activate" and not account.allow_activation:
             raise WriteBlocked("Activation is disabled for this account.")
         amount = change.amount_micros
-        if change.action == "create_search_campaign":
-            spec = change.search_campaign
+        if change.campaign_package is not None:
+            spec = change.campaign_package
             amount = spec.daily_budget_micros
             if (
                 spec.total_budget_micros is not None
@@ -243,7 +254,7 @@ class WritePolicy:
             amount = snapshot["campaign"]["amount_micros"]
         if amount is not None and amount > account.max_daily_budget_micros:
             raise WriteBlocked("The proposed daily budget exceeds the account limit.")
-        if change.action not in ("create_paused_search", "create_search_campaign"):
+        if change.action != "create_paused_search" and change.campaign_package is None:
             campaign = snapshot["campaign"]
             if (
                 campaign["id"] != change.campaign_id

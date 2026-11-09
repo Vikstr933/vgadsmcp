@@ -149,7 +149,7 @@ class SearchSitelink(StrictModel):
         return self
 
 
-class SearchCampaign(StrictModel):
+class CampaignPackage(StrictModel):
     name: Name
     daily_budget_micros: Micros | None = None
     total_budget_micros: Micros | None = None
@@ -160,10 +160,6 @@ class SearchCampaign(StrictModel):
     excluded_geo_target_ids: list[ID] = Field(default_factory=list, max_length=30)
     language_ids: list[ID] = Field(min_length=1, max_length=10)
     conversion_action_ids: list[ID] = Field(min_length=1, max_length=20)
-    ad_groups: list[SearchAdGroup] = Field(min_length=1, max_length=20)
-    negative_keywords: list[SearchKeyword] = Field(default_factory=list, max_length=200)
-    sitelinks: list[SearchSitelink] = Field(default_factory=list, max_length=20)
-    callouts: list[ShortText] = Field(default_factory=list, max_length=20)
     final_url_suffix: (
         Annotated[str, Field(max_length=1024), AfterValidator(printable)] | None
     ) = None
@@ -174,7 +170,7 @@ class SearchCampaign(StrictModel):
         ).days + 1
 
     @model_validator(mode="after")
-    def bounded_campaign(self):
+    def bounded_schedule(self):
         days = self.duration_days()
         if days <= 0:
             raise ValueError("End date must not precede start date.")
@@ -184,21 +180,39 @@ class SearchCampaign(StrictModel):
             )
         if self.total_budget_micros is not None and not 3 <= days <= 90:
             raise ValueError(
-                "Search campaign total budgets require a period of 3 to 90 calendar days."
+                "Campaign total budgets require a period of 3 to 90 calendar days."
             )
         for values in (
             self.geo_target_ids,
             self.excluded_geo_target_ids,
             self.language_ids,
             self.conversion_action_ids,
-            self.callouts,
         ):
             if len(set(values)) != len(values):
                 raise ValueError(
-                    "Duplicate targeting, conversion IDs or callouts are not allowed."
+                    "Duplicate targeting or conversion IDs are not allowed."
                 )
         if set(self.geo_target_ids) & set(self.excluded_geo_target_ids):
             raise ValueError("A location cannot be both included and excluded.")
+        if self.final_url_suffix and (
+            self.final_url_suffix.startswith("?") or "://" in self.final_url_suffix
+        ):
+            raise ValueError(
+                "Supply query parameters only for final_url_suffix, without ? or a URL."
+            )
+        return self
+
+
+class SearchCampaign(CampaignPackage):
+    ad_groups: list[SearchAdGroup] = Field(min_length=1, max_length=20)
+    negative_keywords: list[SearchKeyword] = Field(default_factory=list, max_length=200)
+    sitelinks: list[SearchSitelink] = Field(default_factory=list, max_length=20)
+    callouts: list[ShortText] = Field(default_factory=list, max_length=20)
+
+    @model_validator(mode="after")
+    def bounded_campaign(self):
+        if len(set(self.callouts)) != len(self.callouts):
+            raise ValueError("Duplicate callouts are not allowed.")
         if len({g.name.casefold().strip() for g in self.ad_groups}) != len(
             self.ad_groups
         ):
@@ -223,12 +237,6 @@ class SearchCampaign(StrictModel):
                 raise ValueError(
                     "Campaign negatives conflict with targeted keyword text."
                 )
-        if self.final_url_suffix and (
-            self.final_url_suffix.startswith("?") or "://" in self.final_url_suffix
-        ):
-            raise ValueError(
-                "Supply query parameters only for final_url_suffix, without ? or a URL."
-            )
         if len(json.dumps(self.model_dump()).encode()) > 100_000:
             raise ValueError(
                 "Campaign is too large for one approval. Split into smaller campaigns."

@@ -20,10 +20,14 @@ class GoogleAdsWriteGateway:
 
     def snapshot(self, change: Change):
         change.check_shape()
-        if change.action == "create_search_campaign":
-            from ads_mcp.search_campaigns import snapshot_search
+        if change.action == "create_pmax_campaign":
+            from ads_mcp.pmax_campaigns import snapshot_pmax
 
-            return snapshot_search(self, change)
+            return snapshot_pmax(self, change)
+        if change.campaign_package is not None:
+            from ads_mcp.search_campaigns import snapshot_campaign_package
+
+            return snapshot_campaign_package(self, change)
         if change.action in (
             "create_conversion",
             "update_conversion",
@@ -110,10 +114,10 @@ class GoogleAdsWriteGateway:
     def operations(self, change: Change, snapshot: dict):
         # Never accept protobuf operations, field masks or status from the agent.
         change.check_shape()
-        if change.action == "create_search_campaign":
-            from ads_mcp.search_campaigns import compile_search
+        if change.campaign_package is not None:
+            from ads_mcp.search_campaigns import compile_package
 
-            return compile_search(self, change, snapshot).operations
+            return compile_package(self, change, snapshot).operations
         if change.action in (
             "create_conversion",
             "update_conversion",
@@ -171,10 +175,10 @@ class GoogleAdsWriteGateway:
         return self.service.mutate(request=request, retry=None, timeout=30)
 
     def verify(self, change, before, response):
-        if change.action == "create_search_campaign":
-            from ads_mcp.search_campaigns import verify_search
+        if change.campaign_package is not None:
+            from ads_mcp.search_campaigns import verify_campaign_package
 
-            return verify_search(self, change, before, response)
+            return verify_campaign_package(self, change, before, response)
         if change.action in (
             "create_conversion",
             "update_conversion",

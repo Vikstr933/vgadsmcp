@@ -13,6 +13,8 @@ returnerar. Godkännandesidan och lagringen ligger i ditt Google Cloud-projekt.
 | `writes_preview_budget` | Validerar ändring av en egen, daglig kampanjbudget. Delade budgetar blockeras. |
 | `writes_preview_create_paused_search` | Validerar en **tom, pausad** sökkampanj och en separat budget. Inga annonser, sökord, annonsgrupper eller geografiska inställningar skapas. |
 | `writes_preview_create_search_campaign` | Validerar ett komplett paket: pausad sökkampanj, budget, datum, geografi/språk, annonsgrupper, sökord, negativa sökord, responsiva sökannonser, webbplatslänkar, informationstillägg och valda konverteringar. Se [kampanjbyggaren](search-campaign-builder.md). |
+| `writes_preview_create_pmax_campaign` | Validerar en pausad standardkampanj med en tillgångsgrupp, texter, valda medietillgångar och konverteringsmål. Se [PMax-byggaren](pmax-campaign-builder.md). |
+| `writes_reconcile_pmax_plan` | Läser tillbaka befintliga PMax-resurser och släpper planens skrivlås vid verifierad avstämning. |
 | `writes_preview_activation` | Validerar separat aktivering av en pausad kampanj, om kontopolicyn tillåter aktivering. |
 | `writes_execute_approved_plan` | Genomför endast ett separat godkänt, oförändrat förslag en gång. |
 | `writes_plan_status` | Visar den inloggade användarens förslag och resultat. |
