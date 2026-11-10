@@ -36,6 +36,10 @@ class FirestorePlanStore:
     def get(self, plan_id):
         return self.plans.document(plan_id).get().to_dict()
 
+    def get_locked_plan_id(self, customer_id):
+        lock = self.locks.document(customer_id).get().to_dict()
+        return lock.get("plan_id") if lock else None
+
     def record_progress(self, plan_id, owner, receipt):
         """Retain created resource IDs before the next mutation, with lock ownership."""
         from google.cloud import firestore

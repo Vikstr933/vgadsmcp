@@ -53,8 +53,8 @@ def policy_status() -> dict:
         "approval_secret_configured": len(policy.approval_secret) >= 32,
         "creation_status": "PAUSED",
         "conversion_tools_version": "1",
-        "search_campaign_builder_version": "4",
-        "pmax_campaign_builder_version": "1",
+        "search_campaign_builder_version": "5",
+        "pmax_campaign_builder_version": "2",
         "conversion_creation": "Native WEBPAGE, ENABLED and secondary; no tags installed. Separate primary/secondary approval. Shared MCC-owned conversions and GA4 imports excluded.",
         "approval": "Separate password-protected browser page; never an MCP approval argument.",
     }
@@ -255,35 +255,19 @@ def plan_status(plan_id: str) -> dict:
         ) from None
 
 
-@writes_mcp.tool(
-    annotations=ToolAnnotations(
-        readOnlyHint=False, destructiveHint=False, idempotentHint=True
-    )
-)
-def reconcile_search_plan(plan_id: str) -> dict:
-    """Read back this OAuth user's unresolved Search creation without mutating Google Ads. Release its lock only when saved resources and goals match the approved plan, allowing documented later campaign activation or ad text edits."""
+def reconcile_campaign(action, plan_id, customer_id):
     try:
-        return WriteWorkflow().reconcile_search_plan(
-            validated_plan_id(plan_id), principal()
-        )
-    except WriteBlocked as error:
-        raise ToolError(str(error)) from None
-    except Exception:
-        raise ToolError(
-            "Read-back could not be confirmed. The account lock remains in place."
-        ) from None
-
-
-@writes_mcp.tool(
-    annotations=ToolAnnotations(
-        readOnlyHint=False, destructiveHint=False, idempotentHint=True
-    )
-)
-def reconcile_pmax_plan(plan_id: str) -> dict:
-    """Verify the saved resources of this OAuth user's unresolved standard PMax creation. Releases its own lock only after a successful read-back. Sends no Google Ads mutations."""
-    try:
+        if (plan_id is None) == (customer_id is None):
+            raise WriteBlocked("Supply exactly one of plan_id or customer_id.")
+        try:
+            account_id = Change.account_id(customer_id)
+        except ValueError as error:
+            raise WriteBlocked(str(error)) from None
         return WriteWorkflow().reconcile_campaign_plan(
-            validated_plan_id(plan_id), principal(), "create_pmax_campaign"
+            validated_plan_id(plan_id) if plan_id is not None else None,
+            principal(),
+            action,
+            customer_id=account_id,
         )
     except WriteBlocked as error:
         raise ToolError(str(error)) from None
@@ -291,3 +275,27 @@ def reconcile_pmax_plan(plan_id: str) -> dict:
         raise ToolError(
             "Read-back could not be confirmed. The account lock remains in place."
         ) from None
+
+
+@writes_mcp.tool(
+    annotations=ToolAnnotations(
+        readOnlyHint=False, destructiveHint=False, idempotentHint=True
+    )
+)
+def reconcile_search_plan(
+    plan_id: str | None = None, customer_id: str | None = None
+) -> dict:
+    """Read back this OAuth user's unresolved Search creation without mutating Google Ads. Supply a full plan_id or the customer_id of the locked account. Releases the lock only after successful read-back."""
+    return reconcile_campaign("create_search_campaign", plan_id, customer_id)
+
+
+@writes_mcp.tool(
+    annotations=ToolAnnotations(
+        readOnlyHint=False, destructiveHint=False, idempotentHint=True
+    )
+)
+def reconcile_pmax_plan(
+    plan_id: str | None = None, customer_id: str | None = None
+) -> dict:
+    """Read back this OAuth user's unresolved standard PMax creation without mutating Google Ads. Supply a full plan_id or the customer_id of the locked account. Releases the lock only after successful read-back."""
+    return reconcile_campaign("create_pmax_campaign", plan_id, customer_id)

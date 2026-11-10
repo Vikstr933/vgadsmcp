@@ -1844,17 +1844,33 @@
         "idempotentHint": true,
         "readOnlyHint": false
       },
-      "description": "Verify the saved resources of this OAuth user's unresolved standard PMax creation. Releases its own lock only after a successful read-back. Sends no Google Ads mutations.",
+      "description": "Read back this OAuth user's unresolved standard PMax creation without mutating Google Ads. Supply a full plan_id or the customer_id of the locked account. Releases the lock only after successful read-back.",
       "inputSchema": {
         "additionalProperties": false,
         "properties": {
+          "customer_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
           "plan_id": {
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
           }
         },
-        "required": [
-          "plan_id"
-        ],
         "type": "object"
       },
       "name": "writes_reconcile_pmax_plan",
@@ -1875,17 +1891,33 @@
         "idempotentHint": true,
         "readOnlyHint": false
       },
-      "description": "Read back this OAuth user's unresolved Search creation without mutating Google Ads. Release its lock only when saved resources and goals match the approved plan, allowing documented later campaign activation or ad text edits.",
+      "description": "Read back this OAuth user's unresolved Search creation without mutating Google Ads. Supply a full plan_id or the customer_id of the locked account. Releases the lock only after successful read-back.",
       "inputSchema": {
         "additionalProperties": false,
         "properties": {
+          "customer_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
           "plan_id": {
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
           }
         },
-        "required": [
-          "plan_id"
-        ],
         "type": "object"
       },
       "name": "writes_reconcile_search_plan",

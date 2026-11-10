@@ -55,6 +55,7 @@ def render_pmax_review(plan):
                 ),
             ]
         ),
+        "<p>Vid start samma dag kan Google spara sitt aktuella klockslag för startdatumet.</p>",
         "<h2>Geografi och språk</h2>",
         table(
             [

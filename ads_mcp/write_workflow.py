@@ -140,12 +140,18 @@ class WriteWorkflow:
     def reconcile_search_plan(self, plan_id, owner):
         return self.reconcile_campaign_plan(plan_id, owner, "create_search_campaign")
 
-    def reconcile_campaign_plan(self, plan_id, owner, action):
+    def reconcile_campaign_plan(self, plan_id, owner, action, *, customer_id=None):
+        if customer_id is not None:
+            plan_id = self.store.get_locked_plan_id(customer_id)
+            if not plan_id:
+                raise WriteBlocked(
+                    "No unresolved write lock was found for this account."
+                )
         plan = self.get_plan(plan_id, owner)
+        if customer_id is not None and plan["customer_id"] != customer_id:
+            raise WriteBlocked("The saved lock does not match the plan account.")
         if plan["change"]["action"] != action:
-            raise WriteBlocked(
-                "Use the reconciliation tool for this campaign type."
-            )
+            raise WriteBlocked("Use the reconciliation tool for this campaign type.")
         if plan["status"] == "verified":
             return {
                 "status": "already_verified",
@@ -158,8 +164,7 @@ class WriteWorkflow:
                 "Reconciliation requires an unresolved plan with saved resource IDs."
             )
         review = {
-            key: plan[key]
-            for key in ("customer_id", "change", "snapshot", "review")
+            key: plan[key] for key in ("customer_id", "change", "snapshot", "review")
         }
         if digest(review) != plan["review_digest"]:
             raise WriteBlocked(
@@ -173,7 +178,13 @@ class WriteWorkflow:
             gateway,
             change,
             plan["snapshot"],
-            receipt,
+            {
+                **receipt,
+                # Older receipts have only the completion time of the failed attempt.
+                "write_started_at": receipt.get(
+                    "write_started_at", plan.get("updated_at")
+                ),
+            },
             reconcile_created_at=plan["created_at"],
         )
         result["reconciled_by_readback"] = True
@@ -222,6 +233,7 @@ class WriteWorkflow:
                 raise WriteBlocked(
                     "Account state changed during validation. Create a new plan."
                 )
+            write_started_at = time.time()
             sent_write = True
             response = gateway.mutate(change, current, validate_only=False)
             if change.campaign_package is not None:
@@ -234,6 +246,7 @@ class WriteWorkflow:
                 response = creation_receipt(
                     change, compile_package(gateway, change, current), response
                 )
+                response["write_started_at"] = write_started_at
                 # Persist IDs before stage two: failures must be reconciled, never recreated.
                 self.store.record_progress(plan_id, owner, response)
                 check_plan(plan, owner)

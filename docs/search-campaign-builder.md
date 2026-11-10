@@ -46,7 +46,9 @@ av pausade kampanjer. En befintlig dagsbudget kan inte byta budgettyp.
   maximera konverteringsvärde. Ingen automatisk växling av budstrategi eller
   påhittad mål-CPA/ROAS. Välj manuell CPC när kunden inte tillåter automatisk budgivning.
 - Start- och slutdatum inklusive år, tolkade i annonskontots tidszon. Starttid
-  00:00:00 och sluttid 23:59:59. Startdatum i det förflutna blockeras.
+  00:00:00 och sluttid 23:59:59. När skapandet sker på godkänt startdatum kan
+  Google spara det aktuella klockslaget. Då verifieras samma datum i kontots
+  tidszon. Startdatum i det förflutna blockeras.
 - Endast Google Sök; sökpartner och Display av. Geografisk inkludering och
   exkludering med `PRESENCE`, samt explicita språk.
 - Upp till 20 annonsgrupper, totalt 500 positiva/negativa sökord. Endast exakt
@@ -88,6 +90,7 @@ om det första svaret hann sparas. Skapa inte ett nytt försök blint. Läs
 `writes_plan_status`. Om det finns sparade resurs-ID:n läser
 `writes_reconcile_search_plan` tillbaka kampanjen och målen utan att ändra
 Google Ads. Den släpper låset när resurserna och målen matchar godkännandet.
+Ange hela `plan_id` eller kundkontots `customer_id` för att hitta kontots lås.
 Senare aktivering och ändrad annonstext får avvika om Google Ads
 ändringshistorik visar ändringen för respektive resurs och fält.
 Vid kvarstående avvikelse används

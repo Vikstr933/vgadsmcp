@@ -38,7 +38,9 @@ exakt samma åtgärder kan återanvändas utan ändringar.
 
 Vid status `unknown`, läs `writes_plan_status`. Om planen har sparade resurs-ID:n
 kan `writes_reconcile_pmax_plan` kontrollera befintliga resurser och släppa
-skrivlåset när verifieringen lyckas. Skicka aldrig skapandet igen efter ett
+skrivlåset när verifieringen lyckas. Ange hela `plan_id` eller kundkontots
+`customer_id`. Vid start samma dag kan Google spara ett annat klockslag på
+det godkända datumet i kontots tidszon. Skicka aldrig skapandet igen efter ett
 osäkert svar. Aktivering hanteras separat. För totalbudget sker den i Google Ads
 eftersom MCP:ns befintliga aktiveringsverktyg kräver dagsbudget.
 

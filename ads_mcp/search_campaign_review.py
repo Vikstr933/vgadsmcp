@@ -54,7 +54,7 @@ def render_search_review(plan):
                 ("Budgivning", spec["bidding"]),
                 (
                     "Period",
-                    f"{spec['start_date']} 00:00:00 – {spec['end_date']} 23:59:59 ({snapshot['account']['time_zone']})",
+                    f"{spec['start_date']} – {spec['end_date']} ({snapshot['account']['time_zone']})",
                 ),
                 (
                     "Politisk EU-reklam",
@@ -80,6 +80,9 @@ def render_search_review(plan):
             ]
         )
     ]
+    parts.append(
+        "<p>Vid start samma dag kan Google spara sitt aktuella klockslag för startdatumet.</p>"
+    )
     parts.append(
         "<h2>Platser</h2>"
         + table(

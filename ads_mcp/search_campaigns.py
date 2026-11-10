@@ -601,6 +601,21 @@ def verify_later_edits(gateway, change, before, receipt, created_at, differences
         difference["change_date_time"] = evidence[key]
 
 
+def start_time_matches(actual, expected, write_started_at, time_zone):
+    if actual == expected:
+        return True
+    if write_started_at is None:
+        return False
+    write_date = datetime.fromtimestamp(write_started_at, ZoneInfo(time_zone)).date()
+    if write_date.isoformat() != expected[:10]:
+        return False
+    try:
+        actual_time = datetime.strptime(actual, "%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        return False
+    return actual_time.date() == write_date
+
+
 def verify_campaign_package(
     gateway, change, before, receipt, *, reconcile_created_at=None
 ):
@@ -663,6 +678,14 @@ def verify_campaign_package(
                 elif kind == "campaign_budget" and path == "name":
                     # Google can use the owning campaign's name for a non-shared budget.
                     good = actual in (value, spec.name)
+                elif kind == "campaign" and path == "start_date_time":
+                    # A start approved for today can be saved with Google's current time.
+                    good = start_time_matches(
+                        actual,
+                        value,
+                        receipt.get("write_started_at"),
+                        before["account"]["time_zone"],
+                    )
                 else:
                     good = actual == value
                 if good:

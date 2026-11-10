@@ -1,6 +1,7 @@
 """Synthetic Search package tests: real protobufs, no credentials or ad writes."""
 
 import copy
+from datetime import datetime
 from types import SimpleNamespace as NS
 from unittest.mock import Mock, patch
 
@@ -440,6 +441,11 @@ def test_review_contains_all_inputs_and_escapes_text():
 
 
 class ProgressStore(MemoryStore):
+    def get_locked_plan_id(self, customer_id):
+        if self.lock and self.plans[self.lock]["customer_id"] == customer_id:
+            return self.lock
+        return None
+
     def record_progress(self, plan_id, owner, receipt):
         assert self.lock == plan_id and self.plans[plan_id]["owner"] == owner
         self.plans[plan_id]["progress"] = copy.deepcopy(receipt)
@@ -621,11 +627,15 @@ def test_reconcile_existing_campaign_checks_readback_and_never_mutates(gateway):
     store.record_progress(plan_id, "owner", receipt)
     store.transition(plan_id, "executing", "unknown", owner="owner")
     store.plans[plan_id]["expires_at"] = 1
+    store.plans[plan_id]["updated_at"] = datetime.fromisoformat(
+        "2030-03-31T23:30:00+00:00"
+    ).timestamp()
 
     with pytest.raises(WriteBlocked, match="not found"):
         workflow.reconcile_search_plan(plan_id, "other-owner")
     objects, _, config = install_readback(gateway, builder, receipt)
     objects["campaign_budget"][0].name = proposal.search_campaign.name
+    objects["campaign"][0].start_date_time = "2030-04-01 01:30:00"
     config.conversion_goal_campaign_config.custom_conversion_goal = ""
     with pytest.raises(WriteBlocked, match="selection"):
         workflow.reconcile_search_plan(plan_id, "owner")
@@ -654,7 +664,13 @@ def test_reconcile_existing_campaign_checks_readback_and_never_mutates(gateway):
     event.changed_fields.paths.append("status")
     events.append(NS(change_event=event))
 
-    result = workflow.reconcile_search_plan(plan_id, "owner")
+    with pytest.raises(WriteBlocked, match="not found"):
+        workflow.reconcile_campaign_plan(
+            None, "other-owner", "create_search_campaign", customer_id=CID
+        )
+    result = workflow.reconcile_campaign_plan(
+        None, "owner", "create_search_campaign", customer_id=CID
+    )
     assert result["status"] == "verified" and result["result"]["reconciled_by_readback"]
     assert result["result"]["status"] == "ENABLED"
     assert result["result"]["later_edits"][0]["field"] == "status"
@@ -664,6 +680,34 @@ def test_reconcile_existing_campaign_checks_readback_and_never_mutates(gateway):
     )
     assert gateway.service.mutate.call_count == 1
     assert gateway.service.mutate.call_args.kwargs["request"].validate_only
+
+
+@pytest.mark.parametrize(
+    "written_at, returned_start, matches",
+    [
+        ("2030-03-31T23:30:00+00:00", "2030-04-01 01:30:00", True),
+        ("2030-03-31T20:30:00+00:00", "2030-04-01 01:30:00", False),
+        ("2030-03-31T23:30:00+00:00", "2030-04-02 01:30:00", False),
+        ("2030-03-31T23:30:00+00:00", "2030-04-01 invalid", False),
+    ],
+)
+def test_campaign_start_verification_uses_actual_write_day(
+    gateway, written_at, returned_start, matches
+):
+    proposal, state = change(), before()
+    builder = compile_search(gateway, proposal, state)
+    receipt = creation_receipt(proposal, builder, response_for(gateway, builder))
+    receipt["write_started_at"] = datetime.fromisoformat(written_at).timestamp()
+    objects, _, _ = install_readback(gateway, builder, receipt)
+    objects["campaign"][0].start_date_time = returned_start
+    if matches:
+        assert (
+            verify_campaign_package(gateway, proposal, state, receipt)["status"]
+            == "PAUSED"
+        )
+    else:
+        with pytest.raises(WriteBlocked, match="campaign.start_date_time"):
+            verify_campaign_package(gateway, proposal, state, receipt)
 
 
 @pytest.mark.parametrize("failure", [None, "goals", "readback", "lost_response"])
