@@ -12,6 +12,26 @@ from zoneinfo import ZoneInfo
 from ads_mcp.conversion_writes import blocked
 
 
+def customer_goal_state(gateway, change):
+    goals = gateway.rows(
+        change.customer_id,
+        "SELECT customer_conversion_goal.category, customer_conversion_goal.origin, customer_conversion_goal.biddable FROM customer_conversion_goal",
+    )
+    if not goals or len(goals) > 200:
+        blocked("Conversion goals are unavailable or too numerous for this review.")
+    return sorted(
+        [
+            dict(
+                category=r.customer_conversion_goal.category.name,
+                origin=r.customer_conversion_goal.origin.name,
+                biddable=r.customer_conversion_goal.biddable,
+            )
+            for r in goals
+        ],
+        key=lambda r: (r["category"], r["origin"]),
+    )
+
+
 def snapshot_campaign_package(gateway, change):
     spec = change.campaign_package
     customers = gateway.rows(
@@ -81,23 +101,7 @@ def snapshot_campaign_package(gateway, change):
         )
     if len(chosen) != len(spec.conversion_action_ids):
         blocked("One or more selected conversion actions were not found.")
-    goals = gateway.rows(
-        change.customer_id,
-        "SELECT customer_conversion_goal.category, customer_conversion_goal.origin, customer_conversion_goal.biddable FROM customer_conversion_goal",
-    )
-    goal_state = sorted(
-        [
-            dict(
-                category=r.customer_conversion_goal.category.name,
-                origin=r.customer_conversion_goal.origin.name,
-                biddable=r.customer_conversion_goal.biddable,
-            )
-            for r in goals
-        ],
-        key=lambda r: (r["category"], r["origin"]),
-    )
-    if not goal_state or len(goal_state) > 200:
-        blocked("Conversion goals are unavailable or too numerous for this review.")
+    goal_state = customer_goal_state(gateway, change)
     geo_ids = spec.geo_target_ids + spec.excluded_geo_target_ids
     geo_rows = gateway.rows(
         change.customer_id,
@@ -720,10 +724,19 @@ def verify_campaign_package(
         )
         for r in goals
     }
-    if pairs != {(g["category"], g["origin"]) for g in before["customer_goals"]} or any(
-        r.campaign_conversion_goal.biddable for r in goals
-    ):
+    if any(r.campaign_conversion_goal.biddable for r in goals):
         blocked("Campaign still has unintended standard conversion goals.")
+    catalog_changed = pairs != {
+        (goal["category"], goal["origin"]) for goal in before["customer_goals"]
+    }
+    if catalog_changed:
+        if reconcile_created_at is None:
+            blocked("Standard conversion goal categories changed during verification.")
+        # Google creates standard goals automatically when account conversions change.
+        # A historical reconciliation can use today's catalog once all goals are off.
+        current = customer_goal_state(gateway, change)
+        if pairs != {(goal["category"], goal["origin"]) for goal in current}:
+            blocked("Campaign standard goals do not match the current account catalog.")
     configs = gateway.rows(
         change.customer_id,
         "SELECT conversion_goal_campaign_config.goal_config_level, conversion_goal_campaign_config.custom_conversion_goal FROM conversion_goal_campaign_config WHERE conversion_goal_campaign_config.campaign = '"
@@ -747,6 +760,7 @@ def verify_campaign_package(
         campaign_id=campaign.split("/")[-1],
         status=campaign_status,
         later_edits=later_edits,
+        standard_goal_catalog_changed=catalog_changed,
         resource_count=len(receipt["resources"]),
         resources=receipt["resources"],
         custom_goal_resource=receipt["custom_goal_resource"],

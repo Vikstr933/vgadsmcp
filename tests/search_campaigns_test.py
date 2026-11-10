@@ -415,6 +415,46 @@ def test_readback_checks_all_resources_and_goals(gateway):
         verify_campaign_package(gateway, proposal, before(), receipt)
 
 
+def test_reconciliation_accepts_only_disabled_goals_confirmed_by_current_catalog(
+    gateway,
+):
+    proposal, state = change(), before()
+    builder = compile_search(gateway, proposal, state)
+    receipt = creation_receipt(proposal, builder, response_for(gateway, builder))
+    _, campaign_goals, _ = install_readback(gateway, builder, receipt)
+    added = goal(gateway, receipt["campaign_resource"], "CONTACT")
+    campaign_goals.append(added)
+    campaign_rows = gateway.rows.side_effect
+    account_goals = snapshot_rows(gateway)[3]
+
+    def rows(customer, query):
+        if " FROM customer_conversion_goal" in query:
+            return account_goals
+        return campaign_rows(customer, query)
+
+    gateway.rows.side_effect = rows
+    with pytest.raises(WriteBlocked, match="changed during verification"):
+        verify_campaign_package(gateway, proposal, state, receipt)
+    with pytest.raises(WriteBlocked, match="current account catalog"):
+        verify_campaign_package(
+            gateway, proposal, state, receipt, reconcile_created_at=1
+        )
+
+    account_goal = gateway.client.get_type("CustomerConversionGoal")
+    account_goal.category, account_goal.origin = "CONTACT", "WEBSITE"
+    account_goals.append(NS(customer_conversion_goal=account_goal))
+    result = verify_campaign_package(
+        gateway, proposal, state, receipt, reconcile_created_at=1
+    )
+    assert result["standard_goal_catalog_changed"] and result["status"] == "PAUSED"
+    added.campaign_conversion_goal.biddable = True
+    with pytest.raises(WriteBlocked, match="unintended"):
+        verify_campaign_package(
+            gateway, proposal, state, receipt, reconcile_created_at=1
+        )
+    gateway.service.mutate.assert_not_called()
+
+
 def test_review_contains_all_inputs_and_escapes_text():
     proposal = change(name="<script>alert(1)</script>")
     rendered = render_search_review(

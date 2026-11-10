@@ -91,6 +91,9 @@ om det första svaret hann sparas. Skapa inte ett nytt försök blint. Läs
 `writes_reconcile_search_plan` tillbaka kampanjen och målen utan att ändra
 Google Ads. Den släpper låset när resurserna och målen matchar godkännandet.
 Ange hela `plan_id` eller kundkontots `customer_id` för att hitta kontots lås.
+Om Google har lagt till standardmål sedan godkännandet kontrolleras kontots
+aktuella uppsättning standardmål. Samtliga standardmål på kampanjen måste vara avstängda för
+budgivning och kampanjens godkända anpassade mål måste fortfarande stämma.
 Senare aktivering och ändrad annonstext får avvika om Google Ads
 ändringshistorik visar ändringen för respektive resurs och fält.
 Vid kvarstående avvikelse används
