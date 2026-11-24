@@ -389,6 +389,557 @@
         }
       },
       "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "readOnlyHint": false
+      },
+      "description": "Create a one-use owner-protected LinkedIn login link, bound to this MCP user. The owner must complete it in their browser. Never log in or approve on their behalf.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "name": "linkedin_connect",
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Linkedin Connect"
+    },
+    {
+      "_meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "Check LinkedIn setup and the current user's connection without returning credentials.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "name": "linkedin_connection_status",
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Linkedin Connection Status"
+    },
+    {
+      "_meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      },
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "readOnlyHint": false
+      },
+      "description": "Delete only this MCP user's stored LinkedIn grant. Does not change LinkedIn ads or revoke other users.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "name": "linkedin_disconnect",
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Linkedin Disconnect"
+    },
+    {
+      "_meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      },
+      "annotations": {
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "readOnlyHint": false
+      },
+      "description": "Execute an independently browser-approved LinkedIn plan once. Never approve for the owner. On unknown result use reconcile_plan; do not create a replacement.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "plan_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "plan_id"
+        ],
+        "type": "object"
+      },
+      "name": "linkedin_execute_plan",
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Linkedin Execute Plan"
+    },
+    {
+      "_meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "Read campaign settings and verify membership of the selected LinkedIn account.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "account_id": {
+            "type": "string"
+          },
+          "campaign_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "account_id",
+          "campaign_id"
+        ],
+        "type": "object"
+      },
+      "name": "linkedin_get_campaign",
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Linkedin Get Campaign"
+    },
+    {
+      "_meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "List LinkedIn ad accounts accessible to the connected LinkedIn member, with paging.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "default": 100,
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "page_token": {
+            "anyOf": [
+              {
+                "maxLength": 4096,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "type": "object"
+      },
+      "name": "linkedin_list_accounts",
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Linkedin List Accounts"
+    },
+    {
+      "_meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "List campaign groups in the selected LinkedIn account.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "account_id": {
+            "type": "string"
+          },
+          "count": {
+            "default": 100,
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "page_token": {
+            "anyOf": [
+              {
+                "maxLength": 4096,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "account_id"
+        ],
+        "type": "object"
+      },
+      "name": "linkedin_list_campaign_groups",
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Linkedin List Campaign Groups"
+    },
+    {
+      "_meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "List campaigns in a numeric LinkedIn ad account ID. Google customer IDs are unrelated.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "account_id": {
+            "type": "string"
+          },
+          "count": {
+            "default": 100,
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "page_token": {
+            "anyOf": [
+              {
+                "maxLength": 4096,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "account_id"
+        ],
+        "type": "object"
+      },
+      "name": "linkedin_list_campaigns",
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Linkedin List Campaigns"
+    },
+    {
+      "_meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "Daily campaign impressions, clicks, spend and website conversions. Use YYYY-MM-DD and at most 367 days; report currency and attribution separately from other platforms.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "account_id": {
+            "type": "string"
+          },
+          "end_date": {
+            "type": "string"
+          },
+          "start_date": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "account_id",
+          "start_date",
+          "end_date"
+        ],
+        "type": "object"
+      },
+      "name": "linkedin_performance",
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Linkedin Performance"
+    },
+    {
+      "_meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "Read a full LinkedIn plan ID's status, including expired or unresolved plans. No ad mutation.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "plan_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "plan_id"
+        ],
+        "type": "object"
+      },
+      "name": "linkedin_plan_status",
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Linkedin Plan Status"
+    },
+    {
+      "_meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      },
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "readOnlyHint": false
+      },
+      "description": "Preview a daily budget in account currency, e.g. '250.00'. Requires a separate LinkedIn account ceiling. No ad mutation is sent.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "account_id": {
+            "type": "string"
+          },
+          "campaign_id": {
+            "type": "string"
+          },
+          "daily_budget": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "account_id",
+          "campaign_id",
+          "daily_budget"
+        ],
+        "type": "object"
+      },
+      "name": "linkedin_preview_budget",
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Linkedin Preview Budget"
+    },
+    {
+      "_meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      },
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "readOnlyHint": false
+      },
+      "description": "Preview PAUSED Sponsored Content campaign settings with explicit group, organization, targeting, future schedule, bid and daily budget. Does NOT create creatives or activate delivery. Local validation only. Owner must review the full proposal.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "account_id": {
+            "type": "string"
+          },
+          "campaign": {
+            "additionalProperties": false,
+            "properties": {
+              "bid_amount": {
+                "type": "string"
+              },
+              "campaign_group_id": {
+                "type": "string"
+              },
+              "cost_type": {
+                "enum": [
+                  "CPC",
+                  "CPM"
+                ],
+                "type": "string"
+              },
+              "daily_budget": {
+                "type": "string"
+              },
+              "end_ms": {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              "locale_country": {
+                "pattern": "^[A-Z]{2}$",
+                "type": "string"
+              },
+              "locale_language": {
+                "pattern": "^[a-z]{2}$",
+                "type": "string"
+              },
+              "name": {
+                "maxLength": 150,
+                "minLength": 1,
+                "type": "string"
+              },
+              "non_political_confirmed": {
+                "const": true,
+                "type": "boolean"
+              },
+              "objective": {
+                "enum": [
+                  "WEBSITE_VISIT",
+                  "WEBSITE_CONVERSION",
+                  "LEAD_GENERATION",
+                  "BRAND_AWARENESS",
+                  "ENGAGEMENT"
+                ],
+                "type": "string"
+              },
+              "organization_id": {
+                "type": "string"
+              },
+              "start_ms": {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              "targeting_criteria": {
+                "additionalProperties": true,
+                "type": "object"
+              }
+            },
+            "required": [
+              "name",
+              "campaign_group_id",
+              "organization_id",
+              "objective",
+              "locale_language",
+              "locale_country",
+              "non_political_confirmed",
+              "daily_budget",
+              "bid_amount",
+              "cost_type",
+              "start_ms",
+              "end_ms",
+              "targeting_criteria"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "account_id",
+          "campaign"
+        ],
+        "type": "object"
+      },
+      "name": "linkedin_preview_create_campaign",
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Linkedin Preview Create Campaign"
+    },
+    {
+      "_meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      },
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "readOnlyHint": false
+      },
+      "description": "Preview a LinkedIn campaign pause. Never sends an ad mutation. Owner approval required for execution.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "account_id": {
+            "type": "string"
+          },
+          "campaign_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "account_id",
+          "campaign_id"
+        ],
+        "type": "object"
+      },
+      "name": "linkedin_preview_pause",
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Linkedin Preview Pause"
+    },
+    {
+      "_meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      },
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "readOnlyHint": false
+      },
+      "description": "Read back an uncertain LinkedIn write, including expired plans, and release its lock only if the intended state is verified. Sends zero ad mutations.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "plan_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "plan_id"
+        ],
+        "type": "object"
+      },
+      "name": "linkedin_reconcile_plan",
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Linkedin Reconcile Plan"
+    },
+    {
+      "_meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      },
+      "annotations": {
         "readOnlyHint": true
       },
       "description": "Retrieves the selectable, filterable, and sortable fields for a specific Google Ads resource,\nincluding compatible metrics and segments.\n\nUse this tool to find out which fields you can select, filter by, or sort by\nwhen querying a specific resource (e.g., 'campaign', 'ad_group').\nThis tool also returns metrics and segments that can be selected with the resource.\nTheir names start with 'metrics.' and 'segments.' respectively.\n\nDo not guess fields, you MUST use this tool to discover them before constructing a query for the\n`search` tool.\n\nThe responses of this tool should be cached, as they don't change frequently.",

@@ -10,3 +10,5 @@ namespaces:
   keyword_planning: true
   # Discovery is enabled; actual writes still require server policy + owner approval.
   writes: true
+  # Uses a separate LinkedIn OAuth grant and account policy. No vendor relay.
+  linkedin: true

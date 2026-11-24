@@ -26,6 +26,10 @@ class SubscriptionsListenCompatibilityTest(unittest.TestCase):
     def test_registers_missing_subscriptions_listen_handler(self):
         server = FastMCP("compat-test")
 
+        # Simulate the older FastMCP omission even when the installed release
+        # already supplies a native handler (which the next test preserves).
+        server._mcp_server._request_handlers.pop("subscriptions/listen", None)
+
         self.assertNotIn(
             "subscriptions/listen", server._mcp_server._request_handlers
         )

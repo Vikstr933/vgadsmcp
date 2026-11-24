@@ -510,3 +510,10 @@ How many active campaigns do I have for customer id 1234567890
 Contributions welcome! See the [Contributing Guide](CONTRIBUTING.md).
 Project maintainers can find the Trusted Publishing and release procedure in
 the [release guide](docs/releasing.md).
+# Optional LinkedIn integration
+
+Viks Annonsverktyg can also connect directly to LinkedIn using the same hosted
+MCP endpoint, with a separate LinkedIn grant and account-specific write policy.
+See [setup, capabilities and rollout](docs/linkedin.md). LinkedIn defaults to
+dry-run. Campaign creation in this version creates paused campaign settings;
+creative upload and activation are not included.
