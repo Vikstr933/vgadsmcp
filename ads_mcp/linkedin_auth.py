@@ -27,7 +27,7 @@ from ads_mcp.write_policy import WriteBlocked, digest
 COOKIE = "__Host-viks-linkedin-oauth"
 
 
-def config():
+def config(*, storage_only=False):
     base = os.getenv("GOOGLE_ADS_MCP_BASE_URL", "").rstrip("/")
     parsed = urlsplit(base)
     client_id = os.getenv("LINKEDIN_MCP_CLIENT_ID", "")
@@ -38,7 +38,11 @@ def config():
         or os.getenv("GOOGLE_ADS_MCP_JWT_SIGNING_KEY")
         or os.getenv("GOOGLE_ADS_MCP_OAUTH_CLIENT_SECRET", "")
     )
-    if not client_id or not client_secret or not project or not encryption:
+    if (
+        not project
+        or not encryption
+        or (not storage_only and (not client_id or not client_secret))
+    ):
         raise WriteBlocked(
             "LinkedIn setup is incomplete. Configure client ID, client secret, encrypted storage and Firestore."
         )
@@ -70,7 +74,7 @@ class LinkedInStore:
     def __init__(self):
         from google.cloud import firestore
 
-        settings = config()
+        settings = config(storage_only=True)
         self.client = firestore.Client(
             project=settings["project"], database=settings["database"]
         )
@@ -264,14 +268,21 @@ async def connect_page(request):
         return HTMLResponse(
             '<!doctype html><html lang="sv"><meta charset="utf-8"><title>Anslut LinkedIn</title>'
             "<h1>Anslut LinkedIn till Viks Annonsverktyg</h1>"
-            "<p>Anslutningen knyts till den Google-inloggning som skapade denna länk. "
-            "Fortsätt endast om du själv bad om länken i din egen chatt.</p>"
+            "<p>Anslutningen knyts till det Google-konto du använde i Viks Annonsverktyg. Fortsätt om du själv startade anslutningen.</p>"
             "<p>LinkedIn ber om åtkomst till annonskonton, rapporter och annonsändringar. "
             "Ändringar i verktyget kräver separat kontopolicy och godkännande. "
             "Anslutningsuppgifter sparas krypterat i ditt Google Cloud-projekt.</p>"
             f'<form method="post"><input type="hidden" name="csrf" value="{proof}">'
             "<button>Fortsätt till LinkedIn</button></form></html>",
-            headers=HEADERS,
+            headers={
+                **HEADERS,
+                "Content-Security-Policy": HEADERS[
+                    "Content-Security-Policy"
+                ].replace(
+                    "form-action 'self'",
+                    "form-action 'self' https://www.linkedin.com",
+                ),
+            },
         )
     except Exception:
         return PlainTextResponse(
@@ -317,7 +328,7 @@ async def callback_page(request):
             store.save_grant, data["owner"], response.json()
         )
         result = HTMLResponse(
-            '<!doctype html><html lang="sv"><meta charset="utf-8"><title>LinkedIn anslutet</title><h1>LinkedIn är anslutet</h1><p>Gå tillbaka till din chatt och be om listan över dina LinkedIn-annonskonton. Inga annonser har ändrats.</p></html>',
+            '<!doctype html><html lang="sv"><meta charset="utf-8"><title>LinkedIn anslutet</title><h1>LinkedIn är anslutet</h1><p><a href="/anslutningar">Visa mina anslutningar och annonskonton</a></p><p>Du kan nu använda LinkedIn i din anslutna chatt.</p></html>',
             headers=HEADERS,
         )
     except Exception:

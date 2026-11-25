@@ -16,7 +16,9 @@
 
 import os
 
+from starlette.middleware import Middleware
 from ads_mcp.coordinator import mcp
+from ads_mcp.connections import DashboardCallback, register_dashboard
 from ads_mcp.public_site import register_public_site_routes
 from ads_mcp.write_approval import register_approval_routes
 from ads_mcp.linkedin_auth import register_linkedin_routes
@@ -24,6 +26,7 @@ from ads_mcp.linkedin_approval import register_linkedin_approval_routes
 
 from ads_mcp.linkedin_upload import register_upload_route
 
+register_dashboard(mcp)
 register_approval_routes(mcp)
 register_public_site_routes(mcp)
 
@@ -54,6 +57,7 @@ def run_server() -> None:
             transport="streamable-http",
             port=port,
             host="0.0.0.0",
+            middleware=[Middleware(DashboardCallback)],
             uvicorn_config={"access_log": False},
         )
     else:

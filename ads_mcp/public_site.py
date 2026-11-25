@@ -24,7 +24,10 @@ ASSETS = {
 
 def register_public_site_routes(mcp):
     for path, (body, media_type) in ASSETS.items():
+        if path == "/":
+            body = body.replace('<div class="actions">', '<div class="actions"><a class="button" href="/anslutningar">Mina anslutningar</a>')
         if path == "/privacy.html":
+            body = body.replace("Webbplatsen visar endast appinformation, policy och villkor. Den innehåller inga annonsrapporter, inga formulär för Google-inloggning och ingen egen analys- eller reklamkod.", "På sidan Mina anslutningar kan du identifiera dig med Google och se dina åtkomliga annonskonton. En skyddad webbläsarkaka identifierar din tillfälliga session. Kontoöversikten lagras krypterad och kan öppnas i tio minuter.")
             body = body.replace(
                 "</article>",
                 "<h2>LinkedIn-anslutning</h2><p>Om du väljer att ansluta LinkedIn hämtar verktyget annonskonton, kampanjinställningar och resultat från LinkedIns API. LinkedIn-inloggningen är separat från Google. Åtkomsttoken sparas krypterat i operatörens Firestore-databas och knyts till din verifierade användare. Ingen extern annonseringstjänst används som mellanhand. Begärda verktygsresultat skickas till den AI-klient du använder.</p><p>LinkedIn-ändringar kräver en separat kontopolicy och ett godkännande för varje förslag. Underlag och körningsstatus lagras för kontroll och felsökning. Du kan radera din lagrade LinkedIn-anslutning med verktygets frånkopplingsfunktion och återkalla appens behörighet hos LinkedIn. Tokenposter har en teknisk raderingsmarkering en dag efter giltighetstidens slut. Engångslänkar gäller i tio minuter. Automatisk databasradering förutsätter aktiverad TTL. Övriga lagringstider och kontaktvägar beskrivs ovan.</p></article>",

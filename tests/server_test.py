@@ -45,7 +45,10 @@ class TestUtils(unittest.TestCase):
             with patch.object(server.mcp, "run") as run:
                 server.run_server()
 
+        from unittest.mock import ANY
+        self.assertEqual([m.cls for m in run.call_args.kwargs["middleware"]], [server.DashboardCallback])
         run.assert_called_once_with(
+            middleware=ANY,
             transport="streamable-http",
             port=18080,
             host="0.0.0.0",

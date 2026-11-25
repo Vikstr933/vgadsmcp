@@ -4,6 +4,17 @@ This optional native adapter runs inside the existing Python MCP service. It
 calls LinkedIn directly. No Pipeboard, AdPlug, or other hosted marketing relay is
 used, and the Node community server is not executed or proxied.
 
+## Connection dashboard
+
+Open `/anslutningar` on the service domain and choose the same Google account
+used in the MCP client. The dashboard uses the existing registered Google
+callback with a separate browser-bound state and PKCE flow. It lists directly
+accessible Google Ads account IDs. Choose LinkedIn, sign in as owner, and
+authorize LinkedIn. The saved LinkedIn grant is available in MCP clients using
+the same Google subject. The dashboard session expires after ten minutes.
+Installing the MCP connector in a new client still uses that client's OAuth
+flow. The chat-based connection link remains available.
+
 ## First connection
 
 1. The LinkedIn developer app must have Advertising API access. In its **Auth**
