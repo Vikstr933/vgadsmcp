@@ -110,6 +110,7 @@ def test_existing_callbacks_and_browser_binding():
         proposal_path = "/approvals/" + "a" * 32
         for requested, expected in (
             (proposal_path, proposal_path),
+            (hub.ACTIVITY_PATH, hub.ACTIVITY_PATH),
             ("//example.com", hub.HOME),
         ):
             begin = client.get(

@@ -223,3 +223,14 @@ budet, även när det ärvs från annonsgruppen. En ändring av gruppbudet gäll
 sökord som ärver det. Varje förslag granskas av sin användare och genomförs med
 `writes_execute_approved_plan`. Om utfallet är oklart kan `writes_reconcile_cpc_bid`
 läsa tillbaka budet och stämma av låset.
+
+## Användaraktivitet
+
+Sidan `/admin/aktivitet` använder vAds Google-inloggning. Behöriga adresser
+finns i `ads_mcp/activity.py`. Firestore samlar ett atomiskt räknevärde per
+användare och svensk kalenderdag i `viks_activity_days`. Uppgifter om verktyg,
+argument, annonskonton och resultat ingår inte. Registrering sker för
+autentiserade MCP-verktygsanrop, även om verktyget sedan returnerar ett fel.
+Vid lagringsfel fortsätter verktyget och anrop kan saknas i statistiken.
+Vyn visar 30 dagar. För automatisk fysisk radering, aktivera Firestore TTL för
+fältet `delete_after` i samlingsgruppen `viks_activity_days`.

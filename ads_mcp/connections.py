@@ -17,6 +17,7 @@ from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, RedirectResponse
 
+from ads_mcp.activity import PATH as ACTIVITY_PATH, activity_page, is_admin
 from ads_mcp.linkedin_auth import config, connection_store
 from ads_mcp.linkedin_client import LinkedInAPI
 from ads_mcp.mcp_header_interceptor import MCPHeaderInterceptor
@@ -31,15 +32,17 @@ ADS = "https://www.googleapis.com/auth/adwords"
 HEAD = {**HEADERS, "Referrer-Policy": "same-origin"}
 
 
-def page(content, status=200):
+def page(content, status=200, *, title="Anslutningar"):
+    title = html.escape(title)
     return HTMLResponse(
         '<!doctype html><html lang="sv"><meta charset="utf-8"><meta name="viewport" content="width=device-width">'
-        "<title>Anslutningar · Viks Annonsverktyg</title><style>"
+        f"<title>{title} · Viks Annonsverktyg</title><style>"
         "body{margin:0;background:#f4f6f3;color:#173c32;font:1rem/1.55 system-ui}main,header{max-width:48rem;margin:auto;padding:1.2rem}"
         "header{border-bottom:1px solid #bccbc2}h1{margin:.3em 0}h2{margin-top:0}section{background:white;padding:1.3rem;border:1px solid #d6ded7;border-radius:12px;margin:1rem 0}"
         "a{color:#075640}button,.btn{background:#155640;color:white;padding:.6em 1em;border:0;border-radius:6px;font:inherit;cursor:pointer;text-decoration:none;display:inline-block}"
+        "table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:.6rem;border-bottom:1px solid #d6ded7}th{font-size:.9rem}"
         'small{color:#445b51}ul{padding-left:1.3em}</style><header><a href="/">Viks Annonsverktyg</a></header>'
-        "<main><h1>Anslutningar</h1>" + content + "</main></html>",
+        f"<main><h1>{title}</h1>" + content + "</main></html>",
         status,
         headers=HEAD,
     )
@@ -74,7 +77,7 @@ async def google_start(request):
         state = PREFIX + secrets.token_urlsafe(32)
         linkedin_first = request.query_params.get("kanal") == "linkedin"
         target = request.query_params.get("till", "")
-        if not re.fullmatch(
+        if target != ACTIVITY_PATH and not re.fullmatch(
             r"/(?:(?:linkedin/)?approvals/[a-f0-9]{32}|linkedin/(?:connect|images/upload)/[A-Za-z0-9_-]{43})",
             target,
         ):
@@ -183,6 +186,7 @@ async def google_callback(request):
                     {
                         "owner": owner,
                         "email": user.get("email", ""),
+                        "email_verified": user.get("email_verified") is True,
                         "accounts": ids,
                     }
                 ).encode()
@@ -299,6 +303,7 @@ async def dashboard(request):
                 '<a class="btn" href="/anslutningar/google">Anslut Google Ads</a></section>'
                 "<section><h2>LinkedIn Ads</h2><p>Välj ditt Google-konto och fortsätt sedan till LinkedIn.</p>"
                 '<a class="btn" href="/anslutningar/google?kanal=linkedin">Anslut LinkedIn</a></section>'
+                '<small>Administratörerna kan se aktiva dagar och antal verktygsanrop per användare. <a href="/privacy.html">Integritetspolicy</a></small>'
             )
         if request.method == "POST":
             if (
@@ -327,7 +332,13 @@ async def dashboard(request):
         return page(
             "<p>Inloggad med "
             + html.escape(user["email"])
-            + ".</p><section><h2>Google Ads</h2>"
+            + ".</p>"
+            + (
+                '<p><a href="/admin/aktivitet">Visa användaraktivitet</a></p>'
+                if is_admin(user)
+                else ""
+            )
+            + "<section><h2>Google Ads</h2>"
             + google
             + '<p><a href="/anslutningar/google">Välj Google-konto igen</a></p></section><section><h2>LinkedIn Ads</h2>'
             + linkedin
@@ -342,5 +353,6 @@ async def dashboard(request):
 
 
 def register_dashboard(mcp):
+    mcp.custom_route(ACTIVITY_PATH, methods=["GET"])(activity_page)
     mcp.custom_route(HOME, methods=["GET", "POST"])(dashboard)
     mcp.custom_route(HOME + "/google", methods=["GET"])(google_start)

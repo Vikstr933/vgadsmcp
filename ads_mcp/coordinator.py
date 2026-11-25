@@ -51,7 +51,10 @@ if _CLIENT_ID and _CLIENT_SECRET:
         provider_kwargs["client_storage"] = client_storage
 
     auth = GoogleProvider(**provider_kwargs)
+    from ads_mcp.activity import ActivityCounts
+
     mcp = FastMCP("Google Ads Server", auth=auth)
+    mcp.add_middleware(ActivityCounts())
 else:
     mcp = FastMCP("Google Ads Server")
 
