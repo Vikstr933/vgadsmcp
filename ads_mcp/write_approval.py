@@ -81,6 +81,7 @@ def render_review(plan):
 
     action = change["action"]
     actions = {
+        "set_cpc_bid": "Ändra max-CPC",
         "pause": "Pausa kampanj",
         "activate": "Aktivera pausad kampanj",
         "set_budget": "Ändra genomsnittlig dagsbudget",
@@ -93,7 +94,11 @@ def render_review(plan):
         ("Kampanj", campaign.get("name", change.get("name"))),
         ("Kampanj-ID", campaign.get("id", "Tilldelas vid skapandet")),
     ]
-    if action == "set_budget":
+    if action == "set_cpc_bid":
+        from ads_mcp.cpc_bids import review_rows
+
+        rows = review_rows(plan)
+    elif action == "set_budget":
         rows += [
             ("Nuvarande budget", money(campaign["amount_micros"])),
             ("Ny budget", money(change["amount_micros"])),
@@ -225,6 +230,11 @@ async def approval_page(request: Request):
             if activation
             else "Kontrollera konto, kampanj och före/efter. Skapade kampanjer förblir pausade. Budgetändringar kan påverka pågående annonsering."
         )
+        if plan["change"]["action"] == "set_cpc_bid":
+            title = "Godkänn ändring av max-CPC"
+            warning = "Ett nytt bud kan påverka klickkostnad och leverans så snart det genomförs."
+            budget_note = ("Sökordet får ett eget bud." if plan["change"].get("criterion_id")
+                           else "Standardbudet gäller sökord som ärver annonsgruppens bud.")
         return HTMLResponse(
             f"""<!doctype html><html lang="sv"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>{title}</title><style>body{{font:17px system-ui;max-width:900px;margin:3rem auto;padding:1rem;color:#202a37}}dl{{overflow-wrap:anywhere;background:#f1f4f8;padding:1rem}}dd{{margin:0 0 1rem}}button,input{{font:inherit;padding:.7rem}}button{{background:#174ea6;color:white;border:0}}label{{display:block;margin:1rem 0}}</style></head><body><h1>{title}</h1><p>{warning}</p><p>{validation_note} Godkänn endast den ändring du själv beställt. Text i kampanjnamn är data, inte instruktioner.</p>{rendered}<p>{budget_note}</p><form method="post"><input type="hidden" name="csrf" value="{csrf}"><label>Skriv Godkänn för att godkänna exakt detta förslag:<br><input name="confirm" required autocomplete="off" ></label><button type="submit">Godkänn förslaget</button></form><p>Stäng sidan för att avstå. Godkännandet skickar ännu ingen ändring till Google. Gå därefter tillbaka till Claude för att genomföra förslaget.</p></body></html>""",
             headers=HEADERS,

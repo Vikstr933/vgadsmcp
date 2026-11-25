@@ -28,6 +28,7 @@ class Change(BaseModel):
     action: Literal[
         "pause",
         "set_budget",
+        "set_cpc_bid",
         "create_paused_search",
         "create_search_campaign",
         "create_pmax_campaign",
@@ -39,6 +40,9 @@ class Change(BaseModel):
     customer_id: str
     login_customer_id: str | None = None
     campaign_id: str | None = None
+    ad_group_id: str | None = None
+    criterion_id: str | None = None
+    cpc_bid_micros: int | None = Field(default=None, gt=0, le=10**15)
     search_campaign: SearchCampaign | None = None
     pmax_campaign: PMaxCampaign | None = None
     conversion_action_id: str | None = None
@@ -57,7 +61,7 @@ class Change(BaseModel):
             raise ValueError("Use a 10-digit Google Ads customer ID.")
         return value.replace("-", "")
 
-    @field_validator("campaign_id", "conversion_action_id")
+    @field_validator("campaign_id", "conversion_action_id", "ad_group_id", "criterion_id")
     @classmethod
     def object_id(cls, value):
         if value is not None and not re.fullmatch(r"[0-9]{1,20}", value):
@@ -80,6 +84,14 @@ class Change(BaseModel):
         return None
 
     def check_shape(self):
+        if self.action == "set_cpc_bid":
+            allowed = {"action","customer_id","login_customer_id","campaign_id","ad_group_id","criterion_id","cpc_bid_micros"}
+            if (not self.campaign_id or not self.ad_group_id or self.cpc_bid_micros is None
+                or set(self.model_dump(exclude_none=True)) - allowed):
+                raise WriteBlocked("Select a campaign, ad group and positive max CPC; add criterion_id for a keyword.")
+            return
+        if any(x is not None for x in (self.ad_group_id,self.criterion_id,self.cpc_bid_micros)):
+            raise WriteBlocked("Bid fields require a CPC bid change.")
         if self.action in ("create_search_campaign", "create_pmax_campaign"):
             if self.campaign_package is None or self.eu_political_advertising is None:
                 raise WriteBlocked(
@@ -233,6 +245,11 @@ class WritePolicy:
             raise WriteBlocked("Snapshot belongs to another Google Ads account.")
         if snapshot["account"]["currency"] != account.currency:
             raise WriteBlocked("Account currency differs from the configured policy.")
+        if change.action == "set_cpc_bid":
+            from ads_mcp.cpc_bids import check_target
+
+            check_target(change, snapshot)
+            return
         if self.action_is_conversion(change):
             check_conversion_policy(change, snapshot)
             return

@@ -41,6 +41,10 @@ def describe(change, before):
             "effect": "Create an empty Search campaign and a dedicated daily budget. No ads, keywords, targeting or ad groups are created. Nothing is activated.",
             "rollback": "Leave the campaign paused. Deletion is not exposed.",
         }
+    if change.action == "set_cpc_bid":
+        target = before["target"]
+        return {"before":target, "after":{"cpc_bid_micros":change.cpc_bid_micros,"currency":currency},
+                "effect":"Set an explicit keyword max CPC." if change.criterion_id else "Change the ad group default max CPC for keywords without their own bids."}
     campaign = before["campaign"]
     if change.action == "set_budget":
         return {
@@ -159,7 +163,7 @@ class WriteWorkflow:
                 "result": plan["result"],
             }
         receipt = plan.get("progress")
-        if plan["status"] != "unknown" or not receipt:
+        if plan["status"] != "unknown" or (not receipt and action != "set_cpc_bid"):
             raise WriteBlocked(
                 "Reconciliation requires an unresolved plan with saved resource IDs."
             )
@@ -172,21 +176,28 @@ class WriteWorkflow:
             )
         change = Change.model_validate(plan["change"])
         gateway = self.gateway_factory(change.login_customer_id)
-        from ads_mcp.search_campaigns import verify_campaign_package
+        if action == "set_cpc_bid":
+            current = self.snapshot(gateway, change)
+            self.policy.check(change, current)
+            if current["target"]["cpc_bid_micros"] != change.cpc_bid_micros:
+                raise WriteBlocked("Current explicit bid differs from the approved amount.")
+            result = current
+        else:
+            from ads_mcp.search_campaigns import verify_campaign_package
 
-        result = verify_campaign_package(
-            gateway,
-            change,
-            plan["snapshot"],
-            {
-                **receipt,
-                # Older receipts have only the completion time of the failed attempt.
-                "write_started_at": receipt.get(
-                    "write_started_at", plan.get("updated_at")
-                ),
-            },
-            reconcile_created_at=plan["created_at"],
-        )
+            result = verify_campaign_package(
+                gateway,
+                change,
+                plan["snapshot"],
+                {
+                    **receipt,
+                    # Older receipts have only the completion time of the failed attempt.
+                    "write_started_at": receipt.get(
+                        "write_started_at", plan.get("updated_at")
+                    ),
+                },
+                reconcile_created_at=plan["created_at"],
+            )
         result["reconciled_by_readback"] = True
         self.store.transition(
             plan_id, "unknown", "verified", owner=owner, result=result

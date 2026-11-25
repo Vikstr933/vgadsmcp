@@ -211,3 +211,15 @@ Källor: [Google Ads mutates](https://developers.google.com/google-ads/api/docs/
 [validate_only](https://developers.google.com/google-ads/api/docs/best-practices/testing),
 [pausad kampanjskapning](https://developers.google.com/google-ads/api/samples/add-campaigns),
 [Firestore-transaktioner](https://docs.cloud.google.com/firestore/native/docs/manage-data/transactions).
+
+
+## Manuella sökbud
+
+`writes_preview_cpc_bid` förhandsgranskar ett max-CPC-bud i en sökkampanj
+med manuell CPC. Ange kund-, kampanj- och annonsgrupps-ID. För ett enskilt
+sökord anger du även kriterie-ID. Ett belopp i kontots valuta anges i mikros,
+exempelvis 12 000 000 för 12 SEK på ett SEK-konto. Sidan visar det tidigare
+budet, även när det ärvs från annonsgruppen. En ändring av gruppbudet gäller
+sökord som ärver det. Varje förslag granskas av sin användare och genomförs med
+`writes_execute_approved_plan`. Om utfallet är oklart kan `writes_reconcile_cpc_bid`
+läsa tillbaka budet och stämma av låset.

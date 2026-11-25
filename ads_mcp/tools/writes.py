@@ -56,7 +56,7 @@ def policy_status() -> dict:
         "search_campaign_builder_version": "6",
         "pmax_campaign_builder_version": "3",
         "conversion_creation": "Native WEBPAGE, ENABLED and secondary; no tags installed. Separate primary/secondary approval. Shared MCC-owned conversions and GA4 imports excluded.",
-        "approval": "Separate password-protected browser page; never an MCP approval argument.",
+        "approval": "Personal Google-session browser approval; never an MCP approval argument.",
     }
 
 
@@ -73,6 +73,16 @@ def preview_pause(
             login_customer_id=login_customer_id,
         )
     )
+
+
+@writes_mcp.tool(annotations=PREVIEW)
+def preview_cpc_bid(
+    customer_id: str, campaign_id: str, ad_group_id: str, cpc_bid_micros: int,
+    criterion_id: str | None = None, login_customer_id: str | None = None,
+) -> dict:
+    """Preview a manual Search max CPC change in account currency (10 SEK = 10000000 micros). Omit criterion_id for the group default; supply the positive keyword's criterion ID to set an explicit override. Validate only until personally approved."""
+    return preview(Change(action="set_cpc_bid", customer_id=customer_id, campaign_id=campaign_id,
+        ad_group_id=ad_group_id, criterion_id=criterion_id, cpc_bid_micros=cpc_bid_micros, login_customer_id=login_customer_id))
 
 
 @writes_mcp.tool(annotations=PREVIEW)
@@ -282,6 +292,12 @@ def reconcile_campaign(action, plan_id, customer_id):
         readOnlyHint=False, destructiveHint=False, idempotentHint=True
     )
 )
+def reconcile_cpc_bid(plan_id: str | None = None, customer_id: str | None = None) -> dict:
+    """Read back an unresolved manual CPC plan. Releases the lock only when the exact target has the approved explicit bid. Sends no bid update."""
+    return reconcile_campaign("set_cpc_bid", plan_id, customer_id)
+
+
+@writes_mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
 def reconcile_search_plan(
     plan_id: str | None = None, customer_id: str | None = None
 ) -> dict:

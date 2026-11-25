@@ -1432,6 +1432,71 @@
         "idempotentHint": false,
         "readOnlyHint": false
       },
+      "description": "Preview a manual Search max CPC change in account currency (10 SEK = 10000000 micros). Omit criterion_id for the group default; supply the positive keyword's criterion ID to set an explicit override. Validate only until personally approved.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "ad_group_id": {
+            "type": "string"
+          },
+          "campaign_id": {
+            "type": "string"
+          },
+          "cpc_bid_micros": {
+            "type": "integer"
+          },
+          "criterion_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "customer_id": {
+            "type": "string"
+          },
+          "login_customer_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "customer_id",
+          "campaign_id",
+          "ad_group_id",
+          "cpc_bid_micros"
+        ],
+        "type": "object"
+      },
+      "name": "writes_preview_cpc_bid",
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Writes Preview Cpc Bid"
+    },
+    {
+      "_meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      },
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "readOnlyHint": false
+      },
       "description": "Validate creating a native WEBPAGE conversion in the selected client account. Requires name/category/counting_type. Creates SECONDARY, with ENABLED status (conversions have no pause state), only after separate human browser approval. Does not deploy tags or import GA4 events. Shared MCC-owned conversions are blocked. No Google Ads changes during preview.",
       "inputSchema": {
         "additionalProperties": false,
@@ -2500,6 +2565,53 @@
         "type": "object"
       },
       "title": "Writes Preview Update Conversion"
+    },
+    {
+      "_meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      },
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "readOnlyHint": false
+      },
+      "description": "Read back an unresolved manual CPC plan. Releases the lock only when the exact target has the approved explicit bid. Sends no bid update.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "customer_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "plan_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "type": "object"
+      },
+      "name": "writes_reconcile_cpc_bid",
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Writes Reconcile Cpc Bid"
     },
     {
       "_meta": {

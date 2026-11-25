@@ -47,6 +47,11 @@ class GoogleAdsWriteGateway:
                 "time_zone": customer.time_zone,
             }
         }
+        if change.action == "set_cpc_bid":
+            from ads_mcp.cpc_bids import bid_target
+
+            result["target"] = bid_target(self, change)
+            return result
         if change.action == "create_paused_search":
             return result
         rows = self.rows(
@@ -127,6 +132,12 @@ class GoogleAdsWriteGateway:
 
             return conversion_operations(self, change, snapshot)
         operation = self.client.get_type("MutateOperation")
+        if change.action == "set_cpc_bid":
+            update = operation.ad_group_criterion_operation if change.criterion_id else operation.ad_group_operation
+            update.update.resource_name = snapshot["target"]["resource_name"]
+            update.update.cpc_bid_micros = change.cpc_bid_micros
+            update.update_mask.paths.append("cpc_bid_micros")
+            return [operation]
         if change.action in ("pause", "activate"):
             update = operation.campaign_operation
             update.update.resource_name = snapshot["campaign"]["resource_name"]
@@ -210,7 +221,12 @@ class GoogleAdsWriteGateway:
             )
         else:
             actual = self.snapshot(change)
-            if change.action == "set_budget":
+            if change.action == "set_cpc_bid":
+                from ads_mcp.cpc_bids import check_target
+
+                check_target(change, actual)
+                good = actual["target"]["cpc_bid_micros"] == change.cpc_bid_micros
+            elif change.action == "set_budget":
                 good = (
                     actual["campaign"]["amount_micros"] == change.amount_micros
                     and actual["campaign"]["status"] == before["campaign"]["status"]
