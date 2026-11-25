@@ -40,13 +40,17 @@ FLOW = "__Host-viks-dashboard-google"
 SESSION = "__Host-viks-dashboard-session"
 PREFIX = "viks.dashboard."
 ADS = google_grant.ADS
-CHANNEL_SCOPES = {"google": ADS, "gtm": google_grant.GTM_READ}
+CHANNEL_SCOPES = {
+    "google": ADS,
+    "gtm": google_grant.GTM_READ,
+    "gtm_edit": google_grant.GTM_EDIT,
+}
 HEAD = {
     **HEADERS,
     "Referrer-Policy": "same-origin",
     "Content-Security-Policy": HEADERS["Content-Security-Policy"].replace(
         "style-src 'unsafe-inline'",
-        "style-src 'self' 'unsafe-inline'; script-src 'self'",
+        "style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self'",
     ),
 }
 
@@ -67,7 +71,7 @@ def page(
     return HTMLResponse(
         '<!doctype html><html lang="sv"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
         f"<title>{html.escape(title)} · Viks Annonsverktyg</title>"
-        '<link rel="stylesheet" href="/portal.css"><script src="/portal.js" defer></script>'
+        '<link rel="icon" href="/favicon.ico"><link rel="stylesheet" href="/portal.css"><script src="/portal.js" defer></script>'
         '<a class="skip" href="#main">Hoppa till innehåll</a>'
         '<header><div class="shell top"><a class="brand" href="/">'
         '<span class="mark" aria-hidden="true">V</span>Viks Annonsverktyg</a>'
@@ -118,7 +122,7 @@ async def google_start(request):
             ADMIN_HOME,
             MEMBERS,
         ) and not re.fullmatch(
-            r"/(?:(?:linkedin/)?approvals/[a-f0-9]{32}|linkedin/(?:connect|images/upload)/[A-Za-z0-9_-]{43})",
+            r"/(?:(?:(?:linkedin|gtm)/)?approvals/[a-f0-9]{32}|linkedin/(?:connect|images/upload)/[A-Za-z0-9_-]{43})",
             target,
         ):
             target = HOME
@@ -131,7 +135,7 @@ async def google_start(request):
             ):
                 return RedirectResponse(ACCOUNT, 303, headers=HEAD)
             bound = current["owner"]
-            if channel == "gtm":
+            if channel in ("gtm", "gtm_edit"):
                 target = ACCOUNT
         verifier = secrets.token_urlsafe(48)
         challenge = (
@@ -237,12 +241,12 @@ async def google_callback(request):
         state = await run_in_threadpool(member_state, identity, signup=True)
         ids = None
         if bound and state == "active":
-            if channel == "gtm":
+            if channel in ("gtm", "gtm_edit"):
                 await run_in_threadpool(
                     google_grant.save,
                     owner,
                     exchange.json(),
-                    google_grant.GTM_READ,
+                    CHANNEL_SCOPES[channel],
                 )
             else:
                 await run_in_threadpool(
@@ -255,7 +259,7 @@ async def google_callback(request):
                 )
             except Exception:
                 pass
-        if channel == "gtm" and bound and state == "active":
+        if channel in ("gtm", "gtm_edit") and bound and state == "active":
             previous = await run_in_threadpool(session, request)
             if previous and previous.get("owner") == owner:
                 ids = previous.get("accounts")
@@ -467,14 +471,21 @@ def gtm_card(owner):
             google_grant.grant_ref(owner, google_grant.GTM_READ).get().exists
         )
         status = "Läsåtkomst sparad." if linked else "Ännu inte anslutet."
+        edit_linked = (
+            google_grant.grant_ref(owner, google_grant.GTM_EDIT).get().exists
+        )
     except Exception:
-        linked = False
+        linked = edit_linked = False
         status = "Anslutningens status kunde inte kontrolleras."
-    action = "Förnya GTM-åtkomst" if linked else "Anslut GTM"
+    action = "Förnya läsåtkomst" if linked else "Anslut GTM"
+    edit_action = (
+        "Förnya utkaståtkomst" if edit_linked else "Aktivera GTM-utkast"
+    )
     return (
         '<section><div class="icon gtm" aria-hidden="true">GTM</div><h2>Google Tag Manager</h2>'
         f'<p class="status">{status} Läs taggar, triggers och variabler i Claude.</p>'
-        f'<a class="btn" href="/anslutningar/google?kanal=gtm">{action}</a></section>'
+        f'<a class="btn" href="/anslutningar/google?kanal=gtm">{action}</a>'
+        f'<p><a href="/anslutningar/google?kanal=gtm_edit">{edit_action}</a></p></section>'
     )
 
 

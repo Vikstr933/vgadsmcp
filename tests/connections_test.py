@@ -124,6 +124,22 @@ def test_existing_callbacks_and_browser_binding():
         )
         assert gtm_result.headers["location"] == hub.ACCOUNT
         assert save.call_args.args[-1] == hub.google_grant.GTM_READ
+        edit_start = client.get(
+            hub.HOME + "/google?kanal=gtm_edit", follow_redirects=False
+        )
+        edit_params = parse_qs(urlsplit(edit_start.headers["location"]).query)
+        assert edit_params["scope"] == [
+            "openid email " + hub.google_grant.GTM_EDIT
+        ]
+        assert (
+            client.get(
+                "/auth/callback",
+                params={"code": "gtm-edit", "state": edit_params["state"][0]},
+                follow_redirects=False,
+            ).headers["location"]
+            == hub.ACCOUNT
+        )
+        assert save.call_args.args[-1] == hub.google_grant.GTM_EDIT
         dashboard = client.get(hub.HOME)
         assert all(x in dashboard.text for x in ("123", "456", "v@example.com"))
         assert (

@@ -23,6 +23,7 @@ from ads_mcp.public_site import register_public_site_routes
 from ads_mcp.write_approval import register_approval_routes
 from ads_mcp.linkedin_auth import register_linkedin_routes
 from ads_mcp.linkedin_approval import register_linkedin_approval_routes
+from ads_mcp.gtm_approval import register_gtm_approval_routes
 
 from ads_mcp.linkedin_upload import register_upload_route
 
@@ -33,6 +34,7 @@ register_public_site_routes(mcp)
 register_upload_route(mcp)
 register_linkedin_routes(mcp)
 register_linkedin_approval_routes(mcp)
+register_gtm_approval_routes(mcp)
 
 # The following imports are necessary to register the resources with the `mcp`
 # object, even though they are not directly used in this file.

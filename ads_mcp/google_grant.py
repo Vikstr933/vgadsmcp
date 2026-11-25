@@ -11,9 +11,11 @@ ADS = "https://www.googleapis.com/auth/adwords"
 
 
 GTM_READ = "https://www.googleapis.com/auth/tagmanager.readonly"
+GTM_EDIT = "https://www.googleapis.com/auth/tagmanager.edit.containers"
 SERVICES = {
     ADS: ("Google Ads", "viks_google_ads_grants"),
     GTM_READ: ("Google Tag Manager", "viks_gtm_grants"),
+    GTM_EDIT: ("Google Tag Manager – utkast", "viks_gtm_edit_grants"),
 }
 
 

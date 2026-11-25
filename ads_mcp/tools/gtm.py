@@ -10,14 +10,14 @@ from mcp.types import ToolAnnotations
 from pydantic import Field
 from requests.exceptions import RequestException
 
-from ads_mcp import google_grant
+from ads_mcp import google_grant, gtm_drafts
 from ads_mcp.write_policy import WriteBlocked, principal
 
 gtm_mcp = FastMCP("gtm")
 READ = ToolAnnotations(readOnlyHint=True)
 ID = Annotated[str, Field(pattern=r"^[0-9]{1,24}$")]
 PAGE = Annotated[str | None, Field(max_length=4096)]
-BASE = "https://tagmanager.googleapis.com/tagmanager/v2/"
+BASE = gtm_drafts.BASE
 ENTITY_FIELDS = {
     "tags": (
         "tag",
@@ -144,3 +144,46 @@ def workspace_status(
         f"accounts/{account_id}/containers/{container_id}/workspaces/{workspace_id}/status",
         fields="workspaceChange(changeStatus,tag(tagId,name),trigger(triggerId,name),variable(variableId,name)),mergeConflict(entityInWorkspace(changeStatus,tag(tagId,name),trigger(triggerId,name),variable(variableId,name))",
     )
+
+
+def draft_call(operation):
+    try:
+        return operation()
+    except WriteBlocked as exc:
+        raise ToolError(str(exc)) from None
+    except RefreshError:
+        raise ToolError(
+            "Förnya utkaståtkomsten för GTM i Min översikt."
+        ) from None
+    except Exception:
+        raise ToolError(
+            "GTM-utkastet kunde inte hanteras. Kontrollera förslagets status före ett nytt försök."
+        ) from None
+
+
+@gtm_mcp.tool(
+    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False)
+)
+def propose_tracking_draft(
+    account_id: ID, container_id: ID, draft: gtm_drafts.TrackingDraft
+) -> dict:
+    """Preview a new GTM web workspace with a GA4 event or Google Ads conversion tag and a data-layer trigger. Use verified IDs and data-layer keys. Returns an owner approval URL; no workspace is created yet."""
+    return draft_call(
+        lambda: gtm_drafts.propose(principal(), account_id, container_id, draft)
+    )
+
+
+@gtm_mcp.tool(
+    annotations=ToolAnnotations(
+        readOnlyHint=False, destructiveHint=False, idempotentHint=True
+    )
+)
+def apply_tracking_draft(plan_id: str) -> dict:
+    """Create the exact reviewed GTM draft in its own workspace after browser approval. Never creates or publishes a container version. Check draft status after an uncertain result."""
+    return draft_call(lambda: gtm_drafts.apply(principal(), plan_id))
+
+
+@gtm_mcp.tool(annotations=READ)
+def tracking_draft_status(plan_id: str) -> dict:
+    """Check a tracking proposal's approval and execution status, including a known workspace ID."""
+    return draft_call(lambda: gtm_drafts.status(principal(), plan_id))

@@ -1,5 +1,7 @@
 """Public, static app information. Does not read credentials or account data."""
 
+from base64 import b64decode
+
 from starlette.responses import Response
 
 PORTAL_CSS = """
@@ -50,6 +52,7 @@ summary { cursor:pointer; margin-top:.4rem; color:var(--accent); }
 input[readonly] { flex:1 1 17rem; min-width:0; max-width:100%; padding:.65rem; border:1px solid #9dae9f; border-radius:.45rem; color:var(--ink); font:inherit; }
 #copy-status:not(:empty) { margin-top:.5rem; }
 .table-wrap { overflow:auto; }
+.draft-payload { white-space:pre-wrap; overflow-wrap:anywhere; background:var(--paper); padding:1rem; }
 table { width:100%; border-collapse:collapse; text-align:left; }
 th,td { padding:.65rem; border-bottom:1px solid var(--line); }
 footer { border-top:1px solid var(--line); padding-block:1.25rem 2rem; font-size:.9rem; }
@@ -75,6 +78,12 @@ if (copy && address && status) {
 """
 
 ASSETS = {
+    "/favicon.ico": (
+        b64decode(
+            "AAABAAEAICAAAAEAIAAkAQAAFgAAAIlQTkcNChoKAAAADUlIRFIAAAAgAAAAIAgGAAAAc3p69AAAAOtJREFUeJxjYEAD3Jpy9eJBtv9pgUFmo9sHB6wi/Pa0shgdg+waMMuxOoLelsMwzeOcqDQxUJbDQ2HUAfgku1fM+48MiDUUGYDMoCgESDGMHEcTdMDRy+dIMhAZgPRS7IDA2lwUQ0F8aqglKREihwI+XxGrjmQHoMcrNp+h+56Y9EK0A4iJW1LTCskOIJS6yfE9SQ7AZwm55QXJDsBlEbm+J9kB2BIaMQmUag5AT2wgNjlZjyIHoIcCJb4nywHooUCJ78l2AHq8k5P4KHIACKMDcs0Z3A2SkeGAAW+WD3jHZFB0zQa8czqQ3XMASHhJdv03xdkAAAAASUVORK5CYII="
+        ),
+        "image/x-icon",
+    ),
     "/portal.css": (PORTAL_CSS, "text/css"),
     "/portal.js": (PORTAL_JS, "text/javascript"),
     "/privacy.html": (
@@ -131,7 +140,7 @@ def register_public_site_routes(mcp):
         if path == "/privacy.html":
             body = body.replace(
                 "</article>",
-                "<h2>Google Tag Manager</h2><p>Om du ansluter GTM sparar Viks åtkomstuppgifterna krypterat för ditt medlemskonto. Viks läser din GTM-konfiguration direkt från Google och skickar begärda resultat till din anslutna AI-klient. Du kan återkalla åtkomsten i ditt Google-konto.</p></article>",
+                "<h2>Google Tag Manager</h2><p>Om du ansluter GTM sparar Viks åtkomstuppgifterna krypterat för ditt medlemskonto. Viks läser din GTM-konfiguration direkt från Google och skickar begärda resultat till din anslutna AI-klient. Om du aktiverar utkast sparas ändringsförslaget och ditt godkännande. Godkända utkast kan skrivas i en ny GTM-arbetsyta. Du kan återkalla åtkomsten i ditt Google-konto.</p></article>",
             )
             body = body.replace(
                 "</article>",
@@ -150,6 +159,11 @@ def register_public_site_routes(mcp):
                 "<h2>LinkedIn-anslutning</h2><p>Om du väljer att ansluta LinkedIn hämtar verktyget annonskonton, kampanjinställningar och resultat från LinkedIns API. LinkedIn-inloggningen är separat från Google. Åtkomsttoken sparas krypterat i operatörens Firestore-databas och knyts till din verifierade användare. Ingen extern annonseringstjänst används som mellanhand. Begärda verktygsresultat skickas till den AI-klient du använder.</p><p>LinkedIn-ändringar kräver en separat kontopolicy och ett godkännande för varje förslag. Underlag och körningsstatus lagras för kontroll och felsökning. Du kan radera din lagrade LinkedIn-anslutning med verktygets frånkopplingsfunktion och återkalla appens behörighet hos LinkedIn. Tokenposter har en teknisk raderingsmarkering en dag efter giltighetstidens slut. Engångslänkar gäller i tio minuter. Automatisk databasradering förutsätter aktiverad TTL. Övriga lagringstider och kontaktvägar beskrivs ovan.</p></article>",
             )
 
+        if media_type == "text/html":
+            body = body.replace(
+                "</head>", '<link rel="icon" href="/favicon.ico"></head>'
+            )
+
         def make_handler(content, content_type):
             async def serve(request):
                 return Response(
@@ -158,7 +172,7 @@ def register_public_site_routes(mcp):
                     headers={
                         "Cache-Control": "public, max-age=300",
                         "X-Content-Type-Options": "nosniff",
-                        "Content-Security-Policy": "default-src 'none'; style-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'",
+                        "Content-Security-Policy": "default-src 'none'; style-src 'self'; img-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'",
                     },
                 )
 

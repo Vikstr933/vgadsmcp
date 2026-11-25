@@ -40,6 +40,37 @@
         }
       },
       "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "readOnlyHint": false
+      },
+      "description": "Create the exact reviewed GTM draft in its own workspace after browser approval. Never creates or publishes a container version. Check draft status after an uncertain result.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "plan_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "plan_id"
+        ],
+        "type": "object"
+      },
+      "name": "gtm_apply_tracking_draft",
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Gtm Apply Tracking Draft"
+    },
+    {
+      "_meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      },
+      "annotations": {
         "readOnlyHint": true
       },
       "description": "List GTM accounts accessible to the connected Google user. Pass nextPageToken to continue.",
@@ -252,6 +283,172 @@
         "type": "object"
       },
       "title": "Gtm Live Version"
+    },
+    {
+      "_meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      },
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": false
+      },
+      "description": "Preview a new GTM web workspace with a GA4 event or Google Ads conversion tag and a data-layer trigger. Use verified IDs and data-layer keys. Returns an owner approval URL; no workspace is created yet.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "account_id": {
+            "pattern": "^[0-9]{1,24}$",
+            "type": "string"
+          },
+          "container_id": {
+            "pattern": "^[0-9]{1,24}$",
+            "type": "string"
+          },
+          "draft": {
+            "additionalProperties": false,
+            "properties": {
+              "currency_key": {
+                "anyOf": [
+                  {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_.]{0,79}$",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              },
+              "data_layer_event": {
+                "pattern": "^[A-Za-z][A-Za-z0-9_]{0,39}$",
+                "type": "string"
+              },
+              "tag": {
+                "oneOf": [
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "destination": {
+                        "const": "ga4",
+                        "type": "string"
+                      },
+                      "event_name": {
+                        "pattern": "^[A-Za-z][A-Za-z0-9_]{0,39}$",
+                        "type": "string"
+                      },
+                      "measurement_id": {
+                        "pattern": "^G-[A-Z0-9]{4,24}$",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "destination",
+                      "measurement_id",
+                      "event_name"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "conversion_id": {
+                        "pattern": "^(AW-)?[0-9]{5,24}$",
+                        "type": "string"
+                      },
+                      "conversion_label": {
+                        "pattern": "^[A-Za-z0-9_-]{1,80}$",
+                        "type": "string"
+                      },
+                      "destination": {
+                        "const": "google_ads",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "destination",
+                      "conversion_id",
+                      "conversion_label"
+                    ],
+                    "type": "object"
+                  }
+                ]
+              },
+              "transaction_id_key": {
+                "anyOf": [
+                  {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_.]{0,79}$",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              },
+              "value_key": {
+                "anyOf": [
+                  {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_.]{0,79}$",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              }
+            },
+            "required": [
+              "data_layer_event",
+              "tag"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "account_id",
+          "container_id",
+          "draft"
+        ],
+        "type": "object"
+      },
+      "name": "gtm_propose_tracking_draft",
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Gtm Propose Tracking Draft"
+    },
+    {
+      "_meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "Check a tracking proposal's approval and execution status, including a known workspace ID.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "plan_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "plan_id"
+        ],
+        "type": "object"
+      },
+      "name": "gtm_tracking_draft_status",
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Gtm Tracking Draft Status"
     },
     {
       "_meta": {
