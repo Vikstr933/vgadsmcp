@@ -21,12 +21,15 @@ from ads_mcp import google_grant
 from ads_mcp.membership import (
     ACCOUNT,
     ADMIN,
+    ADMIN_HOME,
+    MEMBERS,
+    admin_page,
     membership_page,
     member_state,
     verified_user,
 )
 from ads_mcp.activity import PATH as ACTIVITY_PATH, activity_page, is_admin
-from ads_mcp.linkedin_auth import config, connection_store
+from ads_mcp.linkedin_auth import DASHBOARD_TTL, config, connection_store
 from ads_mcp.linkedin_client import LinkedInAPI
 from ads_mcp.mcp_header_interceptor import MCPHeaderInterceptor
 from ads_mcp.write_approval import HEADERS
@@ -37,30 +40,50 @@ FLOW = "__Host-viks-dashboard-google"
 SESSION = "__Host-viks-dashboard-session"
 PREFIX = "viks.dashboard."
 ADS = "https://www.googleapis.com/auth/adwords"
-HEAD = {**HEADERS, "Referrer-Policy": "same-origin"}
+HEAD = {
+    **HEADERS,
+    "Referrer-Policy": "same-origin",
+    "Content-Security-Policy": HEADERS["Content-Security-Policy"].replace(
+        "style-src 'unsafe-inline'",
+        "style-src 'self' 'unsafe-inline'; script-src 'self'",
+    ),
+}
 
 
-def page(content, status=200, *, title="Anslutningar"):
-    title = html.escape(title)
+def page(
+    content, status=200, *, title="Anslutningar", user=None, landing=False
+):
+    navigation = (
+        '<a href="/mitt-konto">Min översikt</a>'
+        if user
+        else ('<a href="/anslutningar/google?till=/mitt-konto">Logga in</a>')
+    )
+    if is_admin(user):
+        navigation += '<a href="/admin">Admin</a>'
+    if user:
+        navigation += '<form method="post" action="/logga-ut"><button class="subtle">Logga ut</button></form>'
+    heading = "" if landing else f"<h1>{html.escape(title)}</h1>"
     return HTMLResponse(
-        '<!doctype html><html lang="sv"><meta charset="utf-8"><meta name="viewport" content="width=device-width">'
-        f"<title>{title} · Viks Annonsverktyg</title><style>"
-        "body{margin:0;background:#f4f6f3;color:#173c32;font:1rem/1.55 system-ui}main,header{max-width:48rem;margin:auto;padding:1.2rem}"
-        "header{border-bottom:1px solid #bccbc2}h1{margin:.3em 0}h2{margin-top:0}section{background:white;padding:1.3rem;border:1px solid #d6ded7;border-radius:12px;margin:1rem 0}"
-        "a{color:#075640}button,.btn{background:#155640;color:white;padding:.6em 1em;border:0;border-radius:6px;font:inherit;cursor:pointer;text-decoration:none;display:inline-block}"
-        "table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:.6rem;border-bottom:1px solid #d6ded7}th{font-size:.9rem}"
-        'small{color:#445b51}ul{padding-left:1.3em}</style><header><a href="/">Viks Annonsverktyg</a></header>'
-        f"<main><h1>{title}</h1>" + content + "</main></html>",
+        '<!doctype html><html lang="sv"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
+        f"<title>{html.escape(title)} · Viks Annonsverktyg</title>"
+        '<link rel="stylesheet" href="/portal.css"><script src="/portal.js" defer></script>'
+        '<a class="skip" href="#main">Hoppa till innehåll</a>'
+        '<header><div class="shell top"><a class="brand" href="/">'
+        '<span class="mark" aria-hidden="true">V</span>Viks Annonsverktyg</a>'
+        f'<nav aria-label="Huvudmeny">{navigation}</nav></div></header>'
+        f'<main class="shell" id="main">{heading}{content}</main>'
+        '<footer class="shell"><a href="/privacy.html">Integritet</a>'
+        '<a href="/terms.html">Villkor</a><a href="mailto:viktorstrindin93@gmail.com">Kontakt</a></footer>',
         status,
         headers=HEAD,
     )
 
 
-def cookie(response, key, value):
+def cookie(response, key, value, *, max_age=600):
     response.set_cookie(
         key,
         value,
-        max_age=600,
+        max_age=max_age,
         secure=True,
         httponly=True,
         samesite="lax",
@@ -85,7 +108,13 @@ async def google_start(request):
         state = PREFIX + secrets.token_urlsafe(32)
         linkedin_first = request.query_params.get("kanal") == "linkedin"
         target = request.query_params.get("till", "")
-        if target not in (ACTIVITY_PATH, ACCOUNT, ADMIN) and not re.fullmatch(
+        if target not in (
+            ACTIVITY_PATH,
+            ACCOUNT,
+            ADMIN,
+            ADMIN_HOME,
+            MEMBERS,
+        ) and not re.fullmatch(
             r"/(?:(?:linkedin/)?approvals/[a-f0-9]{32}|linkedin/(?:connect|images/upload)/[A-Za-z0-9_-]{43})",
             target,
         ):
@@ -225,7 +254,7 @@ async def google_callback(request):
             else (target if state == "active" else ACCOUNT)
         )
         response = RedirectResponse(destination, 303, headers=HEAD)
-        cookie(response, SESSION, sid)
+        cookie(response, SESSION, sid, max_age=DASHBOARD_TTL)
     except WriteBlocked as exc:
         response = page(html.escape(str(exc)), 403)
     except Exception:
@@ -266,7 +295,7 @@ def session(request):
     try:
         record = connection_store().peek(sid, "dashboard")
         return json.loads(
-            crypto().decrypt(record["snapshot"].encode(), ttl=600)
+            crypto().decrypt(record["snapshot"].encode(), ttl=DASHBOARD_TTL)
         )
     except (WriteBlocked, InvalidToken):
         return None
@@ -338,49 +367,13 @@ async def dashboard(request):
                 return page("Ogiltigt ursprung.", 403)
             destination = await run_in_threadpool(linkedin_link, user["owner"])
             return RedirectResponse(destination, 303, headers=HEAD)
-        ids = user["accounts"]
-        if ids is None:
-            linked = await run_in_threadpool(
-                lambda: google_grant.grant_ref(user["owner"]).get().exists
-            )
-            google = "Anslut Google Ads här för att använda kanalen med ditt Viks-konto."
-            if linked:
-                try:
-                    ids = await run_in_threadpool(
-                        lambda: google_accounts(
-                            google_grant.credentials(user["owner"])
-                        )
-                    )
-                except Exception:
-                    google = "Google Ads är anslutet men kontolistan kunde inte hämtas."
-        if ids:
-            google = (
-                "Direkt åtkomliga annons- och förvaltarkonton<ul>"
-                + "".join("<li>" + html.escape(i) + "</li>" for i in ids)
-                + "</ul>"
-            )
-        elif ids == []:
-            google = "Inga direkt åtkomliga annonskonton hittades."
-        linkedin = await run_in_threadpool(
-            linkedin_details,
-            user["owner"],
-            request.query_params.get("sida", ""),
-        )
         return page(
-            "<p>Inloggad med "
+            "<p>Inloggad som "
             + html.escape(user["email"])
-            + '. · <a href="/mitt-konto">Mitt konto</a></p>'
-            + (
-                '<p><a href="/admin/aktivitet">Visa användaraktivitet</a></p>'
-                if is_admin(user)
-                else ""
-            )
-            + "<section><h2>Google Ads</h2>"
-            + google
-            + '<p><a href="/anslutningar/google?kanal=google">Anslut Google Ads eller förnya åtkomsten</a></p></section><section><h2>LinkedIn Ads</h2>'
-            + linkedin
-            + '<form method="post"><button>Anslut LinkedIn</button></form></section>'
-            "<small>Använd samma Google-konto när du lägger till vAds i din AI-klient. Den här sidan är inloggad i tio minuter.</small>"
+            + "</p>"
+            + await channel_cards(user, request),
+            title="Anslutningar",
+            user=user,
         )
     except Exception:
         return page(
@@ -389,9 +382,102 @@ async def dashboard(request):
         )
 
 
+async def google_details(user):
+    ids = user.get("accounts")
+    if ids is None:
+        try:
+            credentials = await run_in_threadpool(
+                google_grant.credentials, user["owner"]
+            )
+        except WriteBlocked:
+            return "Ännu inte anslutet.", False
+        except Exception:
+            return "Anslutningens status kunde inte kontrolleras.", False
+        try:
+            ids = await run_in_threadpool(google_accounts, credentials)
+        except Exception:
+            return "Anslutning sparad. Kontolistan kunde inte hämtas.", True
+    if not ids:
+        return "Anslutet. Inga direkt åtkomliga annonskonton hittades.", True
+    return (
+        "Anslutet. <details><summary>Visa annons- och förvaltarkonton</summary><ul>"
+        + "".join("<li>" + html.escape(i) + "</li>" for i in ids)
+        + "</ul></details>",
+        True,
+    )
+
+
+async def channel_cards(user, request):
+    import asyncio
+
+    google_result, linkedin = await asyncio.gather(
+        google_details(user),
+        run_in_threadpool(
+            linkedin_details,
+            user["owner"],
+            request.query_params.get("sida", ""),
+        ),
+    )
+    google, connected = google_result
+    google_action = (
+        "Förnya Google Ads-åtkomst" if connected else "Anslut Google Ads"
+    )
+    linkedin_action = (
+        "Anslut LinkedIn igen"
+        if linkedin.startswith(
+            ("Anslutet.", "Inloggning sparad.", "Inloggningen har gått ut.")
+        )
+        else "Anslut LinkedIn"
+    )
+    return (
+        '<div class="grid"><section><div class="icon google" aria-hidden="true">G</div><h2>Google Ads</h2>'
+        f'<div class="status">{google}</div><a class="btn" href="/anslutningar/google?kanal=google&amp;till=/mitt-konto">{google_action}</a></section>'
+        '<section><div class="icon linkedin" aria-hidden="true">in</div><h2>LinkedIn Ads</h2>'
+        f'<div class="status">{linkedin}</div><form method="post" action="/anslutningar"><button>{linkedin_action}</button></form></section></div>'
+    )
+
+
+def claude_setup():
+    address = html.escape(
+        config(storage_only=True)["base_url"] + "/mcp", quote=True
+    )
+    return (
+        '<section id="claude"><h2>Anslut i Claude</h2>'
+        "<p>Lägg till Viks Annonsverktyg en gång i Claude. Samma adress fungerar för Google Ads och LinkedIn Ads.</p>"
+        '<label for="mcp-address">Anslutningsadress</label><div class="copy">'
+        f'<input id="mcp-address" value="{address}" readonly>'
+        '<button type="button" id="copy-address" hidden>Kopiera adress</button></div><div id="copy-status" role="status"></div>'
+        "<ol><li>Öppna <strong>Customize → Connectors</strong> i Claude och lägg till en anpassad webbanslutning.</li>"
+        "<li>Ange namnet Viks Annonsverktyg och klistra in adressen.</li>"
+        "<li>Logga in med samma Google-konto som här. Aktivera anslutningen i chatten för att använda dina annonskanaler.</li></ol>"
+        '<a href="https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp">Claude: guide för att lägga till en anslutning</a></section>'
+    )
+
+
+async def logout(request):
+    if request.headers.get("origin") != config(storage_only=True)["base_url"]:
+        return page("Ogiltigt ursprung.", 403)
+    sid = request.cookies.get(SESSION)
+    if sid:
+        try:
+            await run_in_threadpool(
+                connection_store().consume, sid, "dashboard"
+            )
+        except WriteBlocked:
+            pass
+    response = RedirectResponse("/", 303, headers=HEAD)
+    response.delete_cookie(
+        SESSION, path="/", secure=True, httponly=True, samesite="lax"
+    )
+    return response
+
+
 def register_dashboard(mcp):
     for path in (ACCOUNT, ADMIN):
         mcp.custom_route(path, methods=["GET", "POST"])(membership_page)
+    for path in (ADMIN_HOME, MEMBERS):
+        mcp.custom_route(path, methods=["GET"])(admin_page)
+    mcp.custom_route("/logga-ut", methods=["POST"])(logout)
     mcp.custom_route(ACTIVITY_PATH, methods=["GET"])(activity_page)
     mcp.custom_route(HOME, methods=["GET", "POST"])(dashboard)
     mcp.custom_route(HOME + "/google", methods=["GET"])(google_start)

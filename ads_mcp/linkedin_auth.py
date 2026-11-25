@@ -70,6 +70,9 @@ def config(*, storage_only=False):
     }
 
 
+DASHBOARD_TTL = 8 * 60 * 60
+
+
 class LinkedInStore:
     def __init__(self):
         from google.cloud import firestore
@@ -89,13 +92,14 @@ class LinkedInStore:
 
     def issue(self, kind, data):
         nonce = secrets.token_urlsafe(32)
+        ttl = DASHBOARD_TTL if kind == "dashboard" else 600
         self.nonces.document(digest({"nonce": nonce})).create(
             {
                 "kind": kind,
                 "data": data,
-                "expires_at": time.time() + 600,
+                "expires_at": time.time() + ttl,
                 "delete_after": datetime.now(timezone.utc)
-                + timedelta(minutes=15),
+                + timedelta(seconds=ttl + 300),
             }
         )
         return nonce
@@ -302,7 +306,8 @@ async def callback_page(request):
             browser,
         )
         from ads_mcp.membership import active_owner
-        if not await run_in_threadpool(active_owner,data["owner"]):
+
+        if not await run_in_threadpool(active_owner, data["owner"]):
             raise WriteBlocked("Aktivt medlemskap krävs.")
         if request.query_params.get("error") or not request.query_params.get(
             "code"
@@ -327,7 +332,7 @@ async def callback_page(request):
             store.save_grant, data["owner"], response.json()
         )
         result = HTMLResponse(
-            '<!doctype html><html lang="sv"><meta charset="utf-8"><title>LinkedIn anslutet</title><h1>LinkedIn är anslutet</h1><p><a href="/anslutningar">Visa mina anslutningar och annonskonton</a></p><p>Du kan nu använda LinkedIn i din anslutna chatt.</p></html>',
+            '<!doctype html><html lang="sv"><meta charset="utf-8"><title>LinkedIn anslutet</title><h1>LinkedIn är anslutet</h1><p><a href="/mitt-konto">Till min översikt</a></p><p>Du kan nu använda LinkedIn i din anslutna chatt.</p></html>',
             headers=HEADERS,
         )
     except Exception:

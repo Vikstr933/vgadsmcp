@@ -2,11 +2,81 @@
 
 from starlette.responses import Response
 
+PORTAL_CSS = """
+:root { color-scheme: light; --ink:#192e28; --muted:#4b6257; --paper:#f5f7f2; --line:#d7e2d9; --accent:#17523d; font: 16px/1.55 system-ui,sans-serif; }
+* { box-sizing:border-box; }
+body { margin:0; color:var(--ink); background:var(--paper); }
+.shell { width:min(70rem, calc(100% - 2.5rem)); margin-inline:auto; }
+header { background:#fff; border-bottom:1px solid var(--line); }
+.top, nav, footer, .brand, .identity, .copy, .hero-channels div { display:flex; align-items:center; gap:0.85rem; flex-wrap:wrap; }
+.top { justify-content:space-between; min-height:4.7rem; padding-block:.7rem; }
+.brand { font-weight:750; text-decoration:none; color:var(--ink); }
+.mark, .icon { display:inline-grid; place-items:center; width:2.2rem; height:2.2rem; border-radius:.6rem; font-weight:800; }
+.mark { color:white; background:var(--accent); }
+a { color:var(--accent); text-underline-offset:.18em; }
+a:focus-visible, button:focus-visible, input:focus-visible, summary:focus-visible { outline:3px solid #287b63; outline-offset:3px; }
+.skip { position:absolute; top:-5rem; }
+.skip:focus { top:0; background:#fff; padding:.75rem; z-index:1; }
+main { min-height:62vh; padding-block:2.5rem; }
+h1, h2 { line-height:1.13; margin:0 0 .75rem; letter-spacing:-.025em; }
+h1 { font-size:clamp(2rem,4vw,3rem); }
+h2 { font-size:1.3rem; }
+p { margin:.6rem 0 1rem; }
+section { border:1px solid var(--line); border-radius:1rem; padding:1.4rem; margin-block:1rem; background:#fff; }
+.hero { background:#132f27; color:#f8fdf8; padding:clamp(1.5rem,5vw,4.2rem); display:grid; grid-template-columns: 3fr 2fr; align-items:center; gap:2.5rem; }
+.hero h1 { font-size:clamp(2.35rem,5.75vw,4.25rem); max-width:13ch; }
+.hero p { max-width:40ch; color:#d5e8dc; }
+.hero .btn { background:#cdf8c6; color:#123728; margin-top:.4rem; }
+.hero .btn + p { font-size:.875rem; margin-bottom:0; }
+.hero-channels { display:grid; gap:.625rem; }
+.hero-channels div { border:1px solid #527165; border-radius:.75rem; background:#224036; padding:.7rem; }
+.google { background:#e9f1ff; color:#1e51a6; }
+.linkedin { background:#dceffc; color:#004980; }
+.claude { background:#f9e3d8; color:#803a20; }
+.grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1rem; }
+.admin-grid { grid-template-columns:repeat(3,minmax(0,1fr)); }
+.grid section { margin:0; }
+.grid .icon { margin-bottom:.8rem; }
+.getting-started { background:transparent; border:0; padding:1.5rem 0 0; }
+.getting-started ol { padding-left:1.6rem; column-gap:3rem; }
+.getting-started li::marker { font-weight:700; color:var(--accent); }
+.btn, button { display:inline-block; background:var(--accent); color:#fff; border:0; border-radius:.55rem; padding:.65rem .95rem; font:inherit; font-weight:650; cursor:pointer; text-decoration:none; }
+.btn:hover, button:hover { filter:brightness(1.13); }
+.subtle { background:transparent; color:var(--accent); padding:.25rem .4rem; }
+[hidden] { display:none !important; }
+.badge { border-radius:2rem; background:#e6efe4; color:#234539; padding:.2rem .65rem; font-size:.875rem; }
+.status { margin-block:.6rem 1rem; color:var(--muted); }
+summary { cursor:pointer; margin-top:.4rem; color:var(--accent); }
+input[readonly] { flex:1 1 17rem; min-width:0; max-width:100%; padding:.65rem; border:1px solid #9dae9f; border-radius:.45rem; color:var(--ink); font:inherit; }
+#copy-status:not(:empty) { margin-top:.5rem; }
+.table-wrap { overflow:auto; }
+table { width:100%; border-collapse:collapse; text-align:left; }
+th,td { padding:.65rem; border-bottom:1px solid var(--line); }
+footer { border-top:1px solid var(--line); padding-block:1.25rem 2rem; font-size:.9rem; }
+@media (max-width:680px) { .hero,.grid,.admin-grid { grid-template-columns:1fr; } .hero { gap:1.25rem; } main { padding-block:1.4rem; } }
+"""
+
+PORTAL_JS = """
+const copy = document.getElementById("copy-address");
+const address = document.getElementById("mcp-address");
+const status = document.getElementById("copy-status");
+if (copy && address && status) {
+  copy.hidden = false;
+  copy.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(address.value);
+      status.textContent = "Adressen är kopierad.";
+    } catch {
+      address.select();
+      status.textContent = "Adressen är markerad. Kopiera den från textfältet.";
+    }
+  });
+}
+"""
+
 ASSETS = {
-    "/": (
-        '<!doctype html>\n<html lang="sv"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Google Ads med en anslutning du styr · Viks Annonsverktyg</title><meta name="description" content="Information om Viks Annonsverktyg, hur anslutningen till Google Ads fungerar och hur uppgifter behandlas."><link rel="stylesheet" href="/style.css"><meta name="theme-color" content="#12382f"></head>\n<body><a class="skip" href="#main">Hoppa till innehåll</a><header><a class="brand" href="/"><span class="mark" aria-hidden="true">V</span>Viks Annonsverktyg</a><nav aria-label="Huvudmeny"><a href="/">Om appen</a><a href="/privacy.html">Integritet</a><a href="/terms.html">Villkor</a></nav></header><main id="main">\n<section class="hero"><div><p class="eyebrow">APPINFORMATION</p><h1>Viks Annonsverktyg</h1><p class="lead">Viks Annonsverktyg kopplar behöriga användares Google Ads-konton till en MCP-kompatibel AI-assistent, till exempel Claude. Läs rapporter, analysera kampanjer och förbered ändringar i samma arbetsflöde.</p><div class="actions"><a class="button" href="/privacy.html">Så hanteras dina uppgifter <span aria-hidden="true">↗</span></a><a href="mailto:viktorstrindin93@gmail.com">Kontakta ansvarig</a></div></div>\n<aside class="flow" aria-label="Anslutningens dataflöde"><p class="eyebrow">SÅ HÄNGER DET IHOP</p><div><b>01</b><span>Google Ads<small>Konton du har behörighet till</small></span></div><div><b>02</b><span>Din MCP-anslutning<small>Drivs i operatörens Google Cloud-projekt</small></span></div><div><b>03</b><span>Din AI-assistent<small>Begär och visar de resultat du använder</small></span></div><p class="flow-note">Google-inloggningen ger åtkomst. Den här informationssidan innehåller ingen inloggning till annonskonton.</p></aside></section>\n<section class="overview"><p class="eyebrow">VAD APPEN GÖR</p><div class="columns"><article><span class="number">01 / LÄS</span><h2>Förstå resultaten</h2><p>Hämta konto- och kampanjinformation samt rapporter om exempelvis kostnad, klick och konverteringar från Google Ads.</p></article><article><span class="number">02 / FÖRBERED</span><h2>Granska före ändring</h2><p>Skrivfunktioner kan förbereda avgränsade ändringar. I läget med obligatoriskt godkännande krävs ett separat godkännande innan de genomförs.</p></article><article><span class="number">03 / STYR</span><h2>Behåll kontrollen</h2><p>Åtkomst begränsas av ditt Google-kontos behörigheter och serverns inställningar. Du kan återkalla Google-åtkomsten när du vill.</p></article></div></section>\n<section class="note"><div><p class="eyebrow">FÖR BEHÖRIGA ANVÄNDARE</p><h2>En egen anslutning till ditt arbetsflöde.</h2></div><p>Appen är avsedd för operatören och särskilt behöriga användare som arbetar med egna eller kunders annonskonton. Den här webbplatsen är offentlig appinformation; den ger inte besökare åtkomst till MCP-servern eller Google Ads.</p></section>\n<section class="contact"><h2>Frågor om appen eller dina uppgifter?</h2><p>Kontakt för drift, support och integritetsfrågor: <a href="mailto:viktorstrindin93@gmail.com">viktorstrindin93@gmail.com</a>.</p><p>Läs <a href="/privacy.html">integritetspolicyn</a> och <a href="/terms.html">användningsvillkoren</a> innan du ansluter ditt konto.</p></section>\n</main><footer><a class="brand" href="/">Viks Annonsverktyg</a><p>Ett fristående verktyg för Google Ads. Inte en officiell produkt från Google eller Anthropic.</p><nav aria-label="Sidfot"><a href="/privacy.html">Integritetspolicy</a><a href="/terms.html">Användningsvillkor</a><a href="mailto:viktorstrindin93@gmail.com">Kontakt</a></nav><small>Uppdaterad 20 oktober 2026</small></footer></body></html>',
-        "text/html",
-    ),
+    "/portal.css": (PORTAL_CSS, "text/css"),
+    "/portal.js": (PORTAL_JS, "text/javascript"),
     "/privacy.html": (
         '<!doctype html>\n<html lang="sv"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Integritetspolicy · Viks Annonsverktyg</title><meta name="description" content="Information om Viks Annonsverktyg, hur anslutningen till Google Ads fungerar och hur uppgifter behandlas."><link rel="stylesheet" href="/style.css"><meta name="theme-color" content="#12382f"></head>\n<body><a class="skip" href="#main">Hoppa till innehåll</a><header><a class="brand" href="/"><span class="mark" aria-hidden="true">V</span>Viks Annonsverktyg</a><nav aria-label="Huvudmeny"><a href="/">Om appen</a><a href="/privacy.html">Integritet</a><a href="/terms.html">Villkor</a></nav></header><main id="main">\n<article class="document"><p class="eyebrow">DINA UPPGIFTER</p><h1>Integritetspolicy</h1><p class="lead">Den här policyn beskriver hur Viks Annonsverktyg använder uppgifter när du ansluter Google Ads till en AI-assistent.</p><p class="date">Senast uppdaterad: 20 oktober 2026</p>\n<h2>1. Appen och kontakt</h2><p>Viks Annonsverktyg är en fristående, självhostad MCP-anslutning. För frågor om drift, behandling av uppgifter eller radering, kontakta appens operatör på <a href="mailto:viktorstrindin93@gmail.com">viktorstrindin93@gmail.com</a>. När ett kundkonto används ansvarar även den organisation som gett användaren uppdraget för sin behandling av kundens uppgifter.</p>\n<h2>2. Vilka uppgifter behandlas?</h2><ul><li><strong>Google-identitet:</strong> grundläggande profiluppgifter, e-postadress och identifierare som används för att autentisera dig.</li><li><strong>Anslutningsuppgifter:</strong> OAuth-token och sessionsuppgifter som behövs för att upprätthålla anslutningen. Appen tar inte emot ditt Google-lösenord.</li><li><strong>Google Ads-data:</strong> uppgifter som efterfrågas genom verktygen, till exempel kontoidentifierare, kontonamn, kampanjer, budgetar och resultatmått såsom kostnad, klick och konverteringar.</li><li><strong>Ändringsunderlag:</strong> planerade ändringar, godkännanden och körningsstatus när skrivfunktioner används.</li><li><strong>Driftuppgifter:</strong> tekniska loggar, felinformation och uppgifter om anrop som behövs för säkerhet och felsökning.</li></ul>\n<h2>3. Varför används uppgifterna?</h2><p>Uppgifterna används för att identifiera behöriga användare, hämta begärda rapporter, besvara användarens frågor och förbereda eller genomföra tillåtna ändringar. Anslutningsuppgifter används även för att hålla inloggningen fungerande. Driftuppgifter används för att underhålla tjänsten och utreda fel.</p><p>Du ska endast ansluta konton och begära data som du har rätt att använda. Denna anslutning är inte avsedd för att samla in känsliga personuppgifter eller exportera kundlistor.</p>\n<h2>4. Var behandlas och lagras uppgifterna?</h2><p>MCP-servern körs i operatörens Google Cloud-projekt. Firestore används för beständig anslutningsinformation och ändringsunderlag när detta är konfigurerat. Hemligheter hanteras via Google Cloud Secret Manager. Åtkomst styrs med behörigheter i Google Cloud. OAuth-lagringen har stöd för kryptering av innehållet.</p><p>Information som ett MCP-verktyg returnerar skickas till den anslutna klienten. Om du använder Claude behandlas den informationen även av Anthropic enligt villkoren och datainställningarna för ditt Claude-konto. Det innebär att självhosting inte håller alla verktygsresultat utanför AI-leverantören.</p>\n<h2>5. Delning och användning av Google-data</h2><p>Uppgifter behandlas av Google för Google Ads och infrastrukturen samt av den AI-klient och leverantör som användaren väljer för den begärda funktionen. Viks Annonsverktyg säljer inte Google-användardata och använder dem inte för annonsinriktning eller för att träna generella AI-modeller. AI-klientens egen behandling styrs av dess avtal och inställningar.</p><p>Viks Annonsverktyg:s användning och överföring av information från Google API:er ska följa <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, inklusive kraven för Limited Use. Operatören får endast använda uppgifterna för den funktion du begär och för nödvändig drift, säkerhet och support.</p>\n<h2>6. Lagringstid och radering</h2><p>Anslutningsuppgifter behövs medan anslutningen används. Du kan återkalla åtkomsten i <a href="https://myaccount.google.com/connections">ditt Google-kontos anslutningar</a> och koppla från MCP-anslutningen i din AI-klient. Återkallad åtkomst stoppar framtida auktoriserad hämtning men raderar inte automatiskt uppgifter som redan har sparats i en chatt eller i serverns lagring.</p><p>Kontakta operatören för att begära radering av lagrade anslutningsuppgifter och ändringsunderlag. Ändringsunderlag har normalt en teknisk raderingsmarkering efter 30 dagar; automatisk radering förutsätter att databasens TTL-funktion är aktiverad. Underlag för oklara eller misslyckade ändringar kan behöva behållas för utredning. Driftloggar följer projektets inställda lagringstider. Chattar och data hos din AI-leverantör hanteras separat där.</p>\n<h2>7. Dina val och rättigheter</h2><p>Du kan avstå från att ansluta ett konto, återkalla åtkomst eller begära information, rättelse och radering genom kontaktadressen ovan. Ange vilket konto och vilken begäran det gäller, men skicka inte lösenord eller token. Identiteten kan behöva kontrolleras innan uppgifter lämnas ut eller raderas. Om dataskyddslagstiftning är tillämplig kan du även kontakta relevant tillsynsmyndighet, exempelvis Integritetsskyddsmyndigheten i Sverige.</p>\n<h2>8. Den här informationswebbplatsen</h2><p>Webbplatsen visar endast appinformation, policy och villkor. Den innehåller inga annonsrapporter, inga formulär för Google-inloggning och ingen egen analys- eller reklamkod. Den är hostad i operatörens Google Cloud-projekt. Hosting-leverantören kan behandla tekniska besöksuppgifter för leverans, drift och säkerhet enligt sina villkor.</p>\n<h2>9. Ändringar</h2><p>Policyn uppdateras när appens funktioner eller behandling förändras. Datumet ovan visar den senaste versionen. Frågor skickas till <a href="mailto:viktorstrindin93@gmail.com">viktorstrindin93@gmail.com</a>.</p></article>\n</main><footer><a class="brand" href="/">Viks Annonsverktyg</a><p>Ett fristående verktyg för Google Ads. Inte en officiell produkt från Google eller Anthropic.</p><nav aria-label="Sidfot"><a href="/privacy.html">Integritetspolicy</a><a href="/terms.html">Användningsvillkor</a><a href="mailto:viktorstrindin93@gmail.com">Kontakt</a></nav><small>Uppdaterad 20 oktober 2026</small></footer></body></html>',
         "text/html",
@@ -22,14 +92,55 @@ ASSETS = {
 }
 
 
+async def homepage(request):
+    from starlette.concurrency import run_in_threadpool
+    from ads_mcp.connections import page, session
+
+    try:
+        user = await run_in_threadpool(session, request)
+    except Exception:
+        user = None
+    action = (
+        '<a class="btn" href="/mitt-konto">Öppna min översikt</a>'
+        if user
+        else '<a class="btn" href="/anslutningar/google?till=/mitt-konto">Skapa gratis konto</a>'
+        "<p>För dig som söker extern åtkomst granskar vi din ansökan efter registrering.</p>"
+    )
+    return page(
+        '<section class="hero"><div><h1>Google Ads och LinkedIn Ads i Claude</h1>'
+        "<p>Hämta rapporter, analysera kampanjer och förbered ändringar med dina egna annonskonton.</p>"
+        + action
+        + '</div><div class="hero-channels">'
+        '<div><span class="icon google" aria-hidden="true">G</span><strong>Google Ads</strong></div>'
+        '<div><span class="icon linkedin" aria-hidden="true">in</span><strong>LinkedIn Ads</strong></div>'
+        '<div><span class="icon claude" aria-hidden="true">✦</span><strong>Claude</strong></div>'
+        '</div></section><section class="getting-started"><h2>Så kommer du igång</h2>'
+        '<ol class="grid admin-grid"><li><strong>Logga in med Google</strong><p>Skapa eller öppna ditt kostnadsfria Viks-konto.</p></li>'
+        "<li><strong>Anslut dina annonskanaler</strong><p>Välj Google Ads, LinkedIn Ads eller båda från min översikt.</p></li>"
+        "<li><strong>Lägg till verktyget i Claude</strong><p>Kopiera adressen och följ guiden i din översikt.</p></li></ol>"
+        "</section>",
+        title="Google Ads och LinkedIn Ads i Claude",
+        user=user,
+        landing=True,
+    )
+
+
 def register_public_site_routes(mcp):
+    mcp.custom_route("/", methods=["GET"])(homepage)
     for path, (body, media_type) in ASSETS.items():
-        if path == "/":
-            body = body.replace('<div class="actions">', '<div class="actions"><a class="button" href="/mitt-konto">Skapa konto eller logga in</a>')
         if path == "/privacy.html":
-            body = body.replace("</article>", "<h2>Viks-medlemskap</h2><p>När du registrerar dig sparar vi din verifierade Google-identitet, krypterad e-postadress och din åtkomststatus. Administratörerna granskar ansökningar från externa användare. Medlemskapet är kostnadsfritt. När du ansluter Google Ads separat sparas dina åtkomstuppgifter krypterat för att kunna hämta och förnya åtkomsten. För att avsluta medlemskapet eller begära radering, använd kontaktadressen ovan.</p></article>")
-            body = body.replace("</article>", "<h2>Användarstatistik</h2><p>Behöriga administratörer för Viks Annonsverktyg ser Google-adress, antal verktygsanrop, aktiva dagar och senaste aktiva datum för de senaste 30 dagarna. Vi summerar per användare och svensk kalenderdag från första anropet. Statistikposten innehåller inga frågor, verktygsnamn, annonskonton eller svar. E-postadressen lagras krypterad. Statistikposter får en raderingsmarkering efter 30 dagar. Automatisk radering förutsätter aktiverad TTL.</p></article>")
-            body = body.replace("Webbplatsen visar endast appinformation, policy och villkor. Den innehåller inga annonsrapporter, inga formulär för Google-inloggning och ingen egen analys- eller reklamkod.", "På sidan Mina anslutningar kan du identifiera dig med Google och se dina åtkomliga annonskonton. En skyddad webbläsarkaka identifierar din tillfälliga session. Kontoöversikten lagras krypterad och kan öppnas i tio minuter.")
+            body = body.replace(
+                "</article>",
+                "<h2>Viks-medlemskap</h2><p>När du registrerar dig sparar vi din verifierade Google-identitet, krypterad e-postadress och din åtkomststatus. Administratörerna granskar ansökningar från externa användare. Medlemskapet är kostnadsfritt. När du ansluter Google Ads separat sparas dina åtkomstuppgifter krypterat för att kunna hämta och förnya åtkomsten. För att avsluta medlemskapet eller begära radering, använd kontaktadressen ovan.</p></article>",
+            )
+            body = body.replace(
+                "</article>",
+                "<h2>Användarstatistik</h2><p>Behöriga administratörer för Viks Annonsverktyg ser Google-adress, antal verktygsanrop, aktiva dagar och senaste aktiva datum för de senaste 30 dagarna. Vi summerar per användare och svensk kalenderdag från första anropet. Statistikposten innehåller inga frågor, verktygsnamn, annonskonton eller svar. E-postadressen lagras krypterad. Statistikposter får en raderingsmarkering efter 30 dagar. Automatisk radering förutsätter aktiverad TTL.</p></article>",
+            )
+            body = body.replace(
+                "Webbplatsen visar endast appinformation, policy och villkor. Den innehåller inga annonsrapporter, inga formulär för Google-inloggning och ingen egen analys- eller reklamkod.",
+                "På sidan Mina anslutningar kan du identifiera dig med Google och se dina åtkomliga annonskonton. En skyddad webbläsarkaka identifierar din tillfälliga session. Webbsessionen gäller i upp till åtta timmar och kan avslutas via Logga ut.",
+            )
             body = body.replace(
                 "</article>",
                 "<h2>LinkedIn-anslutning</h2><p>Om du väljer att ansluta LinkedIn hämtar verktyget annonskonton, kampanjinställningar och resultat från LinkedIns API. LinkedIn-inloggningen är separat från Google. Åtkomsttoken sparas krypterat i operatörens Firestore-databas och knyts till din verifierade användare. Ingen extern annonseringstjänst används som mellanhand. Begärda verktygsresultat skickas till den AI-klient du använder.</p><p>LinkedIn-ändringar kräver en separat kontopolicy och ett godkännande för varje förslag. Underlag och körningsstatus lagras för kontroll och felsökning. Du kan radera din lagrade LinkedIn-anslutning med verktygets frånkopplingsfunktion och återkalla appens behörighet hos LinkedIn. Tokenposter har en teknisk raderingsmarkering en dag efter giltighetstidens slut. Engångslänkar gäller i tio minuter. Automatisk databasradering förutsätter aktiverad TTL. Övriga lagringstider och kontaktvägar beskrivs ovan.</p></article>",

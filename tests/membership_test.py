@@ -175,3 +175,95 @@ def test_ads_grant_requires_separate_consent_and_is_encrypted(monkeypatch):
         assert "example-" not in str(record)
         ref.return_value.get.return_value.to_dict.return_value = record
         assert google_grant.credentials("id").refresh_token == "example-refresh"
+
+
+def test_portal_navigation_and_channel_setup_are_role_aware():
+    from ads_mcp import connections as hub
+    from ads_mcp.public_site import homepage
+
+    client = TestClient(
+        Starlette(
+            routes=[
+                Route("/", homepage),
+                Route(m.ACCOUNT, m.membership_page),
+                Route(m.ADMIN_HOME, m.admin_page),
+                Route(m.MEMBERS, m.admin_page),
+                Route("/logga-ut", hub.logout, methods=["POST"]),
+            ]
+        ),
+        base_url="https://testserver",
+    )
+    with (
+        patch.object(hub, "session", return_value=None) as session,
+        patch.object(m, "member_state", return_value="pending") as state,
+        patch.object(
+            m,
+            "member_list",
+            return_value=([("member@example.com", "Aktiv")], None),
+        ) as members,
+        patch.object(
+            hub, "config", return_value={"base_url": "https://testserver"}
+        ),
+        patch.object(hub, "connection_store") as storage,
+        patch.object(hub, "google_details", return_value=("Anslutet.", True)),
+        patch.object(
+            hub, "linkedin_details", return_value="Ännu inte anslutet."
+        ),
+        patch.object(m, "is_admin", return_value=False) as admin,
+        patch.object(hub, "is_admin", return_value=False) as nav_admin,
+    ):
+        landing = client.get("/")
+        assert (
+            "Skapa gratis konto" in landing.text and "Logga in" in landing.text
+        )
+        assert landing.headers["cache-control"] == "no-store"
+        assert client.get(m.ADMIN_HOME).status_code == 401
+        session.return_value = user()
+        assert "Öppna min översikt" in client.get("/").text
+        pending = client.get(m.ACCOUNT).text
+        assert (
+            "väntar på granskning" in pending and "mcp-address" not in pending
+        )
+        assert client.get(m.MEMBERS).status_code == 403
+        members.assert_not_called()
+        state.return_value = "active"
+        active = client.get(m.ACCOUNT).text
+        assert all(
+            part in active
+            for part in (
+                "Google Ads",
+                "LinkedIn Ads",
+                "Kopiera adress",
+                "https://testserver/mcp",
+            )
+        )
+        assert 'href="/admin"' not in active
+        admin.return_value = nav_admin.return_value = True
+        listing = client.get(m.MEMBERS)
+        assert "member@example.com" in listing.text
+        admin_home = client.get(m.ADMIN_HOME).text
+        assert all(
+            path in admin_home
+            for path in (m.ADMIN, m.MEMBERS, "/admin/aktivitet")
+        )
+
+        client.cookies.set(hub.SESSION, "a" * 43)
+        assert (
+            client.post(
+                "/logga-ut", headers={"origin": "https://elsewhere.test"}
+            ).status_code
+            == 403
+        )
+        storage.return_value.consume.assert_not_called()
+        logout = client.post(
+            "/logga-ut",
+            headers={"origin": "https://testserver"},
+            follow_redirects=False,
+        )
+        assert (
+            logout.headers["location"] == "/"
+            and "Max-Age=0" in logout.headers["set-cookie"]
+        )
+        storage.return_value.consume.assert_called_once_with(
+            "a" * 43, "dashboard"
+        )

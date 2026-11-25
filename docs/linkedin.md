@@ -16,7 +16,7 @@ used in the MCP client. The dashboard uses the existing registered Google
 callback with a separate browser-bound state and PKCE flow. Connecting Google Ads separately requests its Ads scope and stores an encrypted
 refreshable grant. Existing MCP sessions carrying Ads scope can still use it. Choose LinkedIn, use the same Google account as in your MCP client, and
 authorize LinkedIn. The saved LinkedIn grant is available in MCP clients using
-the same Google subject. The dashboard session expires after ten minutes.
+the same Google subject. The dashboard session expires after eight hours. OAuth and approval links keep their own expiration.
 Installing the MCP connector in a new client still uses that client's OAuth
 flow. The chat-based connection link remains available.
 

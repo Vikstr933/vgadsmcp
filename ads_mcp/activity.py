@@ -169,8 +169,10 @@ async def activity_page(request):
         )
         return page(
             f"<p>{today-timedelta(days=DAYS-1)} – {today} · svensk tid</p><section>{table}</section>"
-            "<p>Varje användare visas från sitt första verktygsanrop. Listan sorteras efter aktiva dagar och därefter antal anrop. Även anrop som ger fel räknas.</p>",
+            "<p>Varje användare visas från sitt första verktygsanrop. Listan sorteras efter aktiva dagar och därefter antal anrop. Även anrop som ger fel räknas.</p>"
+            '<p><a href="/admin">Till adminöversikten</a></p>',
             title="Användaraktivitet",
+            user=user,
         )
     except Exception:
         return page(
