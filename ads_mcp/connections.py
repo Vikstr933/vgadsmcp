@@ -39,7 +39,8 @@ HOME = "/anslutningar"
 FLOW = "__Host-viks-dashboard-google"
 SESSION = "__Host-viks-dashboard-session"
 PREFIX = "viks.dashboard."
-ADS = "https://www.googleapis.com/auth/adwords"
+ADS = google_grant.ADS
+CHANNEL_SCOPES = {"google": ADS, "gtm": google_grant.GTM_READ}
 HEAD = {
     **HEADERS,
     "Referrer-Policy": "same-origin",
@@ -106,7 +107,9 @@ async def google_start(request):
     try:
         settings = config(storage_only=True)
         state = PREFIX + secrets.token_urlsafe(32)
-        linkedin_first = request.query_params.get("kanal") == "linkedin"
+        channel = request.query_params.get("kanal")
+        linkedin_first = channel == "linkedin"
+        scope = CHANNEL_SCOPES.get(channel)
         target = request.query_params.get("till", "")
         if target not in (
             ACTIVITY_PATH,
@@ -120,7 +123,7 @@ async def google_start(request):
         ):
             target = HOME
         bound = None
-        if request.query_params.get("kanal") == "google":
+        if scope:
             current = await run_in_threadpool(session, request)
             if (
                 not current
@@ -128,6 +131,8 @@ async def google_start(request):
             ):
                 return RedirectResponse(ACCOUNT, 303, headers=HEAD)
             bound = current["owner"]
+            if channel == "gtm":
+                target = ACCOUNT
         verifier = secrets.token_urlsafe(48)
         challenge = (
             base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest())
@@ -139,7 +144,7 @@ async def google_start(request):
                 "client_id": os.environ["GOOGLE_ADS_MCP_OAUTH_CLIENT_ID"],
                 "redirect_uri": settings["base_url"] + "/auth/callback",
                 "response_type": "code",
-                "scope": "openid email " + ADS if bound else "openid email",
+                "scope": "openid email " + scope if scope else "openid email",
                 "prompt": (
                     "select_account consent" if bound else "select_account"
                 ),
@@ -160,7 +165,7 @@ async def google_start(request):
             crypto()
             .encrypt(
                 json.dumps(
-                    [state, verifier, linkedin_first, target, bound]
+                    [state, verifier, linkedin_first, target, bound, channel]
                 ).encode()
             )
             .decode(),
@@ -193,6 +198,7 @@ async def google_callback(request):
         state, verifier, linkedin_first = flow[:3]
         target = flow[3] if len(flow) >= 4 else HOME
         bound = flow[4] if len(flow) >= 5 else None
+        channel = flow[5] if len(flow) >= 6 else "google"
         if not secrets.compare_digest(
             state, request.query_params.get("state", "")
         ) or not request.query_params.get("code"):
@@ -231,13 +237,28 @@ async def google_callback(request):
         state = await run_in_threadpool(member_state, identity, signup=True)
         ids = None
         if bound and state == "active":
-            await run_in_threadpool(google_grant.save, owner, exchange.json())
+            if channel == "gtm":
+                await run_in_threadpool(
+                    google_grant.save,
+                    owner,
+                    exchange.json(),
+                    google_grant.GTM_READ,
+                )
+            else:
+                await run_in_threadpool(
+                    google_grant.save, owner, exchange.json()
+                )
+        if bound and state == "active" and channel == "google":
             try:
                 ids = await run_in_threadpool(
                     google_accounts, Credentials(token=token)
                 )
             except Exception:
                 pass
+        if channel == "gtm" and bound and state == "active":
+            previous = await run_in_threadpool(session, request)
+            if previous and previous.get("owner") == owner:
+                ids = previous.get("accounts")
         snapshot = (
             crypto()
             .encrypt(json.dumps({**identity, "accounts": ids}).encode())
@@ -410,13 +431,14 @@ async def google_details(user):
 async def channel_cards(user, request):
     import asyncio
 
-    google_result, linkedin = await asyncio.gather(
+    google_result, linkedin, gtm = await asyncio.gather(
         google_details(user),
         run_in_threadpool(
             linkedin_details,
             user["owner"],
             request.query_params.get("sida", ""),
         ),
+        run_in_threadpool(gtm_card, user["owner"]),
     )
     google, connected = google_result
     google_action = (
@@ -430,10 +452,29 @@ async def channel_cards(user, request):
         else "Anslut LinkedIn"
     )
     return (
-        '<div class="grid"><section><div class="icon google" aria-hidden="true">G</div><h2>Google Ads</h2>'
+        '<div class="grid channels-grid"><section><div class="icon google" aria-hidden="true">G</div><h2>Google Ads</h2>'
         f'<div class="status">{google}</div><a class="btn" href="/anslutningar/google?kanal=google&amp;till=/mitt-konto">{google_action}</a></section>'
         '<section><div class="icon linkedin" aria-hidden="true">in</div><h2>LinkedIn Ads</h2>'
-        f'<div class="status">{linkedin}</div><form method="post" action="/anslutningar"><button>{linkedin_action}</button></form></section></div>'
+        f'<div class="status">{linkedin}</div><form method="post" action="/anslutningar"><button>{linkedin_action}</button></form></section>'
+        + gtm
+        + "</div>"
+    )
+
+
+def gtm_card(owner):
+    try:
+        linked = (
+            google_grant.grant_ref(owner, google_grant.GTM_READ).get().exists
+        )
+        status = "Läsåtkomst sparad." if linked else "Ännu inte anslutet."
+    except Exception:
+        linked = False
+        status = "Anslutningens status kunde inte kontrolleras."
+    action = "Förnya GTM-åtkomst" if linked else "Anslut GTM"
+    return (
+        '<section><div class="icon gtm" aria-hidden="true">GTM</div><h2>Google Tag Manager</h2>'
+        f'<p class="status">{status} Läs taggar, triggers och variabler i Claude.</p>'
+        f'<a class="btn" href="/anslutningar/google?kanal=gtm">{action}</a></section>'
     )
 
 
@@ -443,13 +484,13 @@ def claude_setup():
     )
     return (
         '<section id="claude"><h2>Anslut i Claude</h2>'
-        "<p>Lägg till Viks Annonsverktyg en gång i Claude. Samma adress fungerar för Google Ads och LinkedIn Ads.</p>"
+        "<p>Lägg till Viks Annonsverktyg en gång i Claude. Samma adress fungerar för Google Ads, LinkedIn Ads och Google Tag Manager.</p>"
         '<label for="mcp-address">Anslutningsadress</label><div class="copy">'
         f'<input id="mcp-address" value="{address}" readonly>'
         '<button type="button" id="copy-address" hidden>Kopiera adress</button></div><div id="copy-status" role="status"></div>'
         "<ol><li>Öppna <strong>Customize → Connectors</strong> i Claude och lägg till en anpassad webbanslutning.</li>"
         "<li>Ange namnet Viks Annonsverktyg och klistra in adressen.</li>"
-        "<li>Logga in med samma Google-konto som här. Aktivera anslutningen i chatten för att använda dina annonskanaler.</li></ol>"
+        "<li>Logga in med samma Google-konto som här. Aktivera anslutningen i chatten för att använda dina anslutna produkter.</li></ol>"
         '<a href="https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp">Claude: guide för att lägga till en anslutning</a></section>'
     )
 

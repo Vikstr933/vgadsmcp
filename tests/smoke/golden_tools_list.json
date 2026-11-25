@@ -40,6 +40,266 @@
         }
       },
       "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "List GTM accounts accessible to the connected Google user. Pass nextPageToken to continue.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "page_token": {
+            "anyOf": [
+              {
+                "maxLength": 4096,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "type": "object"
+      },
+      "name": "gtm_list_accounts",
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Gtm List Accounts"
+    },
+    {
+      "_meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "List containers for a GTM account. The numeric containerId is used by other tools.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "account_id": {
+            "pattern": "^[0-9]{1,24}$",
+            "type": "string"
+          },
+          "page_token": {
+            "anyOf": [
+              {
+                "maxLength": 4096,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "account_id"
+        ],
+        "type": "object"
+      },
+      "name": "gtm_list_containers",
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Gtm List Containers"
+    },
+    {
+      "_meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "Inventory workspace tags, triggers or variables. Includes tag firing, blocking and consent references.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "account_id": {
+            "pattern": "^[0-9]{1,24}$",
+            "type": "string"
+          },
+          "container_id": {
+            "pattern": "^[0-9]{1,24}$",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "tags",
+              "triggers",
+              "variables"
+            ],
+            "type": "string"
+          },
+          "page_token": {
+            "anyOf": [
+              {
+                "maxLength": 4096,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "workspace_id": {
+            "pattern": "^[0-9]{1,24}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "account_id",
+          "container_id",
+          "workspace_id",
+          "kind"
+        ],
+        "type": "object"
+      },
+      "name": "gtm_list_entities",
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Gtm List Entities"
+    },
+    {
+      "_meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "List workspaces in a GTM container, including their numeric IDs.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "account_id": {
+            "pattern": "^[0-9]{1,24}$",
+            "type": "string"
+          },
+          "container_id": {
+            "pattern": "^[0-9]{1,24}$",
+            "type": "string"
+          },
+          "page_token": {
+            "anyOf": [
+              {
+                "maxLength": 4096,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "account_id",
+          "container_id"
+        ],
+        "type": "object"
+      },
+      "name": "gtm_list_workspaces",
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Gtm List Workspaces"
+    },
+    {
+      "_meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "Read the published version and its tag, trigger and variable inventory.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "account_id": {
+            "pattern": "^[0-9]{1,24}$",
+            "type": "string"
+          },
+          "container_id": {
+            "pattern": "^[0-9]{1,24}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "account_id",
+          "container_id"
+        ],
+        "type": "object"
+      },
+      "name": "gtm_live_version",
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Gtm Live Version"
+    },
+    {
+      "_meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "Read workspace changes and merge conflicts. Does not sync or modify the workspace.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "account_id": {
+            "pattern": "^[0-9]{1,24}$",
+            "type": "string"
+          },
+          "container_id": {
+            "pattern": "^[0-9]{1,24}$",
+            "type": "string"
+          },
+          "workspace_id": {
+            "pattern": "^[0-9]{1,24}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "account_id",
+          "container_id",
+          "workspace_id"
+        ],
+        "type": "object"
+      },
+      "name": "gtm_workspace_status",
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Gtm Workspace Status"
+    },
+    {
+      "_meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      },
+      "annotations": {
         "destructiveHint": false,
         "idempotentHint": true,
         "readOnlyHint": true

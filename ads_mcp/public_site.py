@@ -32,9 +32,9 @@ section { border:1px solid var(--line); border-radius:1rem; padding:1.4rem; marg
 .hero-channels div { border:1px solid #527165; border-radius:.75rem; background:#224036; padding:.7rem; }
 .google { background:#e9f1ff; color:#1e51a6; }
 .linkedin { background:#dceffc; color:#004980; }
-.claude { background:#f9e3d8; color:#803a20; }
+.gtm { background:#f3e8fc; color:#582a7b; font-size:.72rem; }
 .grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1rem; }
-.admin-grid { grid-template-columns:repeat(3,minmax(0,1fr)); }
+.admin-grid,.channels-grid { grid-template-columns:repeat(3,minmax(0,1fr)); }
 .grid section { margin:0; }
 .grid .icon { margin-bottom:.8rem; }
 .getting-started { background:transparent; border:0; padding:1.5rem 0 0; }
@@ -53,7 +53,7 @@ input[readonly] { flex:1 1 17rem; min-width:0; max-width:100%; padding:.65rem; b
 table { width:100%; border-collapse:collapse; text-align:left; }
 th,td { padding:.65rem; border-bottom:1px solid var(--line); }
 footer { border-top:1px solid var(--line); padding-block:1.25rem 2rem; font-size:.9rem; }
-@media (max-width:680px) { .hero,.grid,.admin-grid { grid-template-columns:1fr; } .hero { gap:1.25rem; } main { padding-block:1.4rem; } }
+@media (max-width:680px) { .hero,.grid,.admin-grid,.channels-grid { grid-template-columns:1fr; } .hero { gap:1.25rem; } main { padding-block:1.4rem; } }
 """
 
 PORTAL_JS = """
@@ -107,19 +107,19 @@ async def homepage(request):
         "<p>För dig som söker extern åtkomst granskar vi din ansökan efter registrering.</p>"
     )
     return page(
-        '<section class="hero"><div><h1>Google Ads och LinkedIn Ads i Claude</h1>'
-        "<p>Hämta rapporter, analysera kampanjer och förbered ändringar med dina egna annonskonton.</p>"
+        '<section class="hero"><div><h1>Annonser och spårning i Claude</h1>'
+        "<p>Analysera kampanjer i Google Ads och LinkedIn Ads, och felsök spårningen i Google Tag Manager.</p>"
         + action
         + '</div><div class="hero-channels">'
         '<div><span class="icon google" aria-hidden="true">G</span><strong>Google Ads</strong></div>'
         '<div><span class="icon linkedin" aria-hidden="true">in</span><strong>LinkedIn Ads</strong></div>'
-        '<div><span class="icon claude" aria-hidden="true">✦</span><strong>Claude</strong></div>'
+        '<div><span class="icon gtm" aria-hidden="true">GTM</span><strong>Google Tag Manager</strong></div>'
         '</div></section><section class="getting-started"><h2>Så kommer du igång</h2>'
         '<ol class="grid admin-grid"><li><strong>Logga in med Google</strong><p>Skapa eller öppna ditt kostnadsfria Viks-konto.</p></li>'
-        "<li><strong>Anslut dina annonskanaler</strong><p>Välj Google Ads, LinkedIn Ads eller båda från min översikt.</p></li>"
+        "<li><strong>Anslut dina produkter</strong><p>Välj Google Ads, LinkedIn Ads eller Google Tag Manager från din översikt.</p></li>"
         "<li><strong>Lägg till verktyget i Claude</strong><p>Kopiera adressen och följ guiden i din översikt.</p></li></ol>"
         "</section>",
-        title="Google Ads och LinkedIn Ads i Claude",
+        title="Annonser och spårning i Claude",
         user=user,
         landing=True,
     )
@@ -129,6 +129,10 @@ def register_public_site_routes(mcp):
     mcp.custom_route("/", methods=["GET"])(homepage)
     for path, (body, media_type) in ASSETS.items():
         if path == "/privacy.html":
+            body = body.replace(
+                "</article>",
+                "<h2>Google Tag Manager</h2><p>Om du ansluter GTM sparar Viks åtkomstuppgifterna krypterat för ditt medlemskonto. Viks läser din GTM-konfiguration direkt från Google och skickar begärda resultat till din anslutna AI-klient. Du kan återkalla åtkomsten i ditt Google-konto.</p></article>",
+            )
             body = body.replace(
                 "</article>",
                 "<h2>Viks-medlemskap</h2><p>När du registrerar dig sparar vi din verifierade Google-identitet, krypterad e-postadress och din åtkomststatus. Administratörerna granskar ansökningar från externa användare. Medlemskapet är kostnadsfritt. När du ansluter Google Ads separat sparas dina åtkomstuppgifter krypterat för att kunna hämta och förnya åtkomsten. För att avsluta medlemskapet eller begära radering, använd kontaktadressen ovan.</p></article>",

@@ -95,6 +95,35 @@ def test_existing_callbacks_and_browser_binding():
             == 200
         )
         save.assert_called_once()
+        gtm_start = client.get(
+            hub.HOME + "/google?kanal=gtm", follow_redirects=False
+        )
+        gtm_params = parse_qs(urlsplit(gtm_start.headers["location"]).query)
+        assert gtm_params["scope"] == [
+            "openid email " + hub.google_grant.GTM_READ
+        ]
+        callback_params = {"code": "gtm", "state": gtm_params["state"][0]}
+        original_identity = http.get.return_value.json.return_value
+        http.get.return_value.json.return_value = {
+            **original_identity,
+            "sub": "other-member",
+        }
+        mismatch = client.get("/auth/callback", params=callback_params)
+        assert mismatch.status_code == 403
+        save.assert_called_once()
+        assert "kanal=gtm" in client.get(hub.HOME).text
+        http.get.return_value.json.return_value = original_identity
+        gtm_start = client.get(
+            hub.HOME + "/google?kanal=gtm", follow_redirects=False
+        )
+        gtm_params = parse_qs(urlsplit(gtm_start.headers["location"]).query)
+        gtm_result = client.get(
+            "/auth/callback",
+            params={"code": "gtm", "state": gtm_params["state"][0]},
+            follow_redirects=False,
+        )
+        assert gtm_result.headers["location"] == hub.ACCOUNT
+        assert save.call_args.args[-1] == hub.google_grant.GTM_READ
         dashboard = client.get(hub.HOME)
         assert all(x in dashboard.text for x in ("123", "456", "v@example.com"))
         assert (

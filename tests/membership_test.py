@@ -206,6 +206,7 @@ def test_portal_navigation_and_channel_setup_are_role_aware():
         ),
         patch.object(hub, "connection_store") as storage,
         patch.object(hub, "google_details", return_value=("Anslutet.", True)),
+        patch.object(hub.google_grant, "grant_ref") as grant_ref,
         patch.object(
             hub, "linkedin_details", return_value="Ännu inte anslutet."
         ),
@@ -227,6 +228,7 @@ def test_portal_navigation_and_channel_setup_are_role_aware():
         assert client.get(m.MEMBERS).status_code == 403
         members.assert_not_called()
         state.return_value = "active"
+        grant_ref.return_value.get.return_value.exists = False
         active = client.get(m.ACCOUNT).text
         assert all(
             part in active
@@ -237,6 +239,7 @@ def test_portal_navigation_and_channel_setup_are_role_aware():
                 "https://testserver/mcp",
             )
         )
+        assert "Anslut GTM" in active
         assert 'href="/admin"' not in active
         admin.return_value = nav_admin.return_value = True
         listing = client.get(m.MEMBERS)
