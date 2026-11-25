@@ -28,13 +28,24 @@ class LinkedInAPI:
         if not re.fullmatch(r"20[0-9]{2}(0[1-9]|1[0-2])", self.version):
             raise WriteBlocked("Invalid LinkedIn API version.")
 
-    def request(self, method, path, *, params=None, body=None, partial=False):
+    def request(
+        self,
+        method,
+        path,
+        *,
+        params=None,
+        body=None,
+        partial=False,
+        finder=False,
+    ):
         # Paths are assembled by typed methods below, never supplied by the model.
         headers = {
             "Authorization": f"Bearer {self.token}",
             "LinkedIn-Version": self.version,
             "X-Restli-Protocol-Version": "2.0.0",
         }
+        if finder:
+            headers["X-RestLi-Method"] = "FINDER"
         if partial:
             headers["X-RestLi-Method"] = "PARTIAL_UPDATE"
         try:

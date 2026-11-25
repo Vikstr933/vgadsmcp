@@ -3,7 +3,10 @@
 import html
 import json
 import re
-from urllib.parse import parse_qs
+from urllib.parse import parse_qs, quote, urlsplit
+
+from ads_mcp.linkedin_auth import connection_store
+from ads_mcp.linkedin_client import LinkedInAPI
 
 from starlette.concurrency import run_in_threadpool
 from starlette.responses import HTMLResponse, PlainTextResponse
@@ -84,8 +87,45 @@ async def linkedin_approval_page(request):
         def block(value):
             return html.escape(json.dumps(value, ensure_ascii=False, indent=2))
 
+        preview_html = ""
+        headers = HEADERS.copy()
+        if plan["change"]["action"] == "create_image_ad":
+
+            def image_url():
+                grant = connection_store().grant(plan["owner"])
+                if grant["connection_id"] != plan["review"]["connection_id"]:
+                    raise WriteBlocked("Connection changed.")
+                ad = plan["change"]["creative"]
+                image = LinkedInAPI(grant["access_token"]).request(
+                    "GET", "images/" + quote(ad["image"], safe="")
+                )[0]
+                url = image.get("downloadUrl", "")
+                parsed = urlsplit(url)
+                if (
+                    image.get("id") != ad["image"]
+                    or image.get("status") != "AVAILABLE"
+                    or image.get("owner")
+                    != plan["snapshot"]["campaign"]["associatedEntity"]
+                    or parsed.scheme != "https"
+                    or parsed.netloc
+                    not in ("media.licdn.com", "media.licdn-ei.com")
+                ):
+                    raise WriteBlocked("Image preview is unavailable.")
+                return url
+
+            url = await run_in_threadpool(image_url)
+            headers[
+                "Content-Security-Policy"
+            ] += "; img-src https://media.licdn.com https://media.licdn-ei.com"
+            ad = plan["change"]["creative"]
+            preview_html = (
+                f'<h2>{html.escape(ad["name"])}</h2><p>{html.escape(ad["commentary"])}</p>'
+                f'<img style="max-width:100%" alt="Annonsbild" referrerpolicy="no-referrer" src="{html.escape(url, quote=True)}">'
+                f'<h3>{html.escape(ad["headline"])}</h3><p>{html.escape(ad["call_to_action"])} · {html.escape(ad["landing_page"])}</p>'
+            )
         account = html.escape(str(plan["customer_id"]))
         action = {
+            "create_image_ad": "Skapa pausad bildannons",
             "pause": "Pausa kampanj",
             "set_budget": "Ändra dagsbudget",
             "create_campaign": "Skapa pausad kampanj utan annonser",
@@ -101,20 +141,20 @@ async def linkedin_approval_page(request):
             '<!doctype html><html lang="sv"><meta charset="utf-8"><meta name="viewport" content="width=device-width">'
             "<title>Granska LinkedIn-ändring</title><style>body{font:17px system-ui;max-width:900px;margin:2rem auto;padding:1rem}"
             "pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f8;padding:1rem}button,input{font:inherit;padding:.7rem}</style>"
-            f"<h1>{action}</h1><p>LinkedIn-konto {account}</p>"
+            f"<h1>{action}</h1><p>LinkedIn-konto {account}</p>{preview_html}"
             "<p>Budgetändringar kan påverka pågående annonsering. Nya kampanjer skapas pausade. "
             "Förhandsgranskningen har kontrollerats lokalt, men LinkedIn har inte validerat någon skrivning ännu. "
             "Kontrollera konto, valuta, budget, bud, datum och inriktning.</p>"
             f'<h2>Före</h2><pre>{block(plan["snapshot"])}</pre>'
             f'<h2>Efter</h2><pre>{block(plan["review"]["proposed"])}</pre>'
-            "<p>Skapandet omfattar kampanjinställningarna. Annonsmaterial och aktivering ingår inte. "
+            "<p>Den föreslagna ändringen visas ovan. Nya annonser skapas pausade. "
             "Vid avbrott kontrolleras utfallet före nya försök. Återställning av en budgetändring kräver ett nytt godkännande. "
             "En skapad kampanj lämnas pausad om du avstår från fortsättning.</p>"
             f'<form method="post"><input type="hidden" name="csrf" value="{csrf}">'
             f"{political_confirmation}"
             '<label>Skriv GODKÄNN <input name="confirm" required autocomplete="off" pattern="GODKÄNN"></label>'
             "<button>Godkänn förslaget</button></form></html>",
-            headers=HEADERS,
+            headers=headers,
         )
     except Exception:
         return PlainTextResponse(

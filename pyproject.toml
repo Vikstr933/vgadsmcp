@@ -13,7 +13,9 @@ dependencies = [
     "mcp[cli]>=2.0.0,<3",
     "fastmcp>=4.0.6,<5",
     "httpx>=0.28.1,<1",
-    "cryptography>=44"
+  "cryptography>=44",
+  "Pillow>=11.3",
+  "python-multipart>=0.0.20"
 ]
 
 description = "MCP Server for Google Ads, depends on Google Ads API."

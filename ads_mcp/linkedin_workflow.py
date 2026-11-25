@@ -19,6 +19,12 @@ from pydantic import (
 )
 
 from ads_mcp.linkedin_client import LinkedInAPI, LinkedInRejected, linkedin_id
+from ads_mcp.linkedin_creatives import (
+    ImageAd,
+    campaign_org,
+    image_status,
+    verify_creative,
+)
 from ads_mcp.write_policy import WriteBlocked, WritePolicy, digest
 from ads_mcp.write_store import FirestorePlanStore, check_plan
 
@@ -116,7 +122,8 @@ class CampaignDraft(BaseModel):
 
 class LinkedInChange(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
-    action: Literal["pause", "set_budget", "create_campaign"]
+    action: Literal["pause", "set_budget", "create_campaign", "create_image_ad"]
+    creative: ImageAd | None = None
     account_id: str
     campaign_id: str | None = None
     daily_budget: str | None = None
@@ -134,6 +141,8 @@ class LinkedInChange(BaseModel):
 
     @model_validator(mode="after")
     def shape(self):
+        if (self.action == "create_image_ad") != (self.creative is not None):
+            raise ValueError("Only image ads require a creative draft.")
         create = self.action == "create_campaign"
         if create != (self.campaign is not None) or create == (
             self.campaign_id is not None
@@ -246,6 +255,15 @@ class LinkedInWorkflow:
                     "budgetOptimization",
                 )
             }
+        if change.creative:
+            org = campaign_org(result["campaign"])
+            if (
+                image_status(self.api, change.creative.image, org)
+                != "AVAILABLE"
+            ):
+                raise WriteBlocked(
+                    "The selected image is not AVAILABLE yet. Check its status before previewing."
+                )
         return result
 
     def check(self, change, snapshot):
@@ -304,11 +322,16 @@ class LinkedInWorkflow:
             values = change.campaign.payload(
                 change.account_id, account["currency"], plan_id[:12]
             )
+        if change.creative:
+            values = change.creative.payload(snapshot["campaign"], plan_id[:12])
         plan = {
             "id": plan_id,
             "owner": owner,
             "customer_id": change.account_id,
-            "change": {**change.model_dump(), "customer_id": change.account_id},
+            "change": {
+                **change.model_dump(exclude_none=True),
+                "customer_id": change.account_id,
+            },
             "snapshot": snapshot,
             "review": {"proposed": values, "connection_id": self.connection_id},
             "status": "pending_approval",
@@ -325,7 +348,11 @@ class LinkedInWorkflow:
             "before": snapshot,
             "after": values,
             "validation": "Local policy validation only. No LinkedIn validation or write has been sent.",
-            "creation_note": "Campaign only, PAUSED. Creatives, image uploads and activation are not included.",
+            "creation_note": (
+                "Image ad only, PAUSED."
+                if change.creative
+                else "Campaign settings only."
+            ),
         }
         if self.policy.mode == "dry_run":
             return result
@@ -369,6 +396,10 @@ class LinkedInWorkflow:
         return plan, LinkedInChange.model_validate(change_data)
 
     def verify(self, plan, change, receipt=None):
+        if change.creative:
+            return verify_creative(
+                self.api, change.account_id, plan["review"]["proposed"], receipt
+            )
         campaign_id = change.campaign_id
         if change.campaign:
             campaign_id = (receipt or {}).get("campaign_id")
@@ -460,6 +491,16 @@ class LinkedInWorkflow:
                     else {}
                 )
                 store.record_progress(plan_id, owner, receipt)
+            elif change.creative:
+                _, urn = self.api.request(
+                    "POST",
+                    f"adAccounts/{change.account_id}/creatives",
+                    params={"action": "createInline"},
+                    body={"creative": plan["review"]["proposed"]},
+                )
+                mutation_completed = True
+                receipt = {"creative_id": urn}
+                store.record_progress(plan_id, owner, receipt)
             else:
                 self.api.patch_campaign(
                     change.account_id,
@@ -517,7 +558,7 @@ class LinkedInWorkflow:
         # Reconciliation checks intended remote state and never replays the mutation.
         (
             self.check(change, self.snapshot(change))
-            if not change.campaign
+            if not change.campaign and not change.creative
             else account_policy(change.account_id)
         )
         result = self.verify(plan, change, plan.get("progress"))

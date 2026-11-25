@@ -11,6 +11,8 @@ from starlette.concurrency import run_in_threadpool
 
 from ads_mcp.linkedin_auth import config, connection_store
 from ads_mcp.linkedin_client import LinkedInAPI, linkedin_id
+from ads_mcp.linkedin_creatives import ImageAd
+from ads_mcp.linkedin_upload import upload_target
 from ads_mcp.linkedin_workflow import (
     CampaignDraft,
     LinkedInChange,
@@ -76,7 +78,8 @@ async def connection_status() -> dict:
             != "{}",
             "creation_status": "PAUSED",
             "campaign_creation_scope": "Campaign settings only; no creatives or activation.",
-            "version": "1",
+            "creative_creation_scope": "Single image ad in a paused website campaign.",
+            "version": "2",
         }
 
     return await guarded(status)
@@ -170,6 +173,51 @@ async def preview(change):
         return service.preview(change, owner)
 
     return await guarded(run)
+
+
+@linkedin_mcp.tool(annotations=PLAN)
+async def image_upload_link(account_id: str, campaign_id: str) -> dict:
+    """Get a one-use protected browser link to upload a JPG or PNG for a paused website campaign. The owner chooses and submits the file. Returns no credentials."""
+
+    def begin():
+        owner, service = workflow()
+        service.policy.require_writes()
+        org = upload_target(
+            service.api, linkedin_id(account_id), linkedin_id(campaign_id)
+        )
+        ticket = connection_store().issue(
+            "image-upload",
+            {
+                "owner": owner,
+                "connection": service.connection_id,
+                "account": account_id,
+                "campaign": campaign_id,
+                "organization": org,
+            },
+        )
+        return {
+            "url": service.policy.base_url
+            + "/linkedin/images/upload/"
+            + ticket,
+            "expires_in_seconds": 600,
+        }
+
+    return await guarded(begin)
+
+
+@linkedin_mcp.tool(annotations=PLAN)
+async def preview_image_ad(
+    account_id: str, campaign_id: str, creative: ImageAd
+) -> dict:
+    """Preview a complete paused LinkedIn single-image website ad using an AVAILABLE Page image. Requires separate browser approval before execution."""
+    return await preview(
+        LinkedInChange(
+            action="create_image_ad",
+            account_id=account_id,
+            campaign_id=campaign_id,
+            creative=creative,
+        )
+    )
 
 
 @linkedin_mcp.tool(annotations=PLAN)

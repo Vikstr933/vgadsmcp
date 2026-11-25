@@ -523,6 +523,41 @@
         }
       },
       "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "readOnlyHint": false
+      },
+      "description": "Get a one-use protected browser link to upload a JPG or PNG for a paused website campaign. The owner chooses and submits the file. Returns no credentials.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "account_id": {
+            "type": "string"
+          },
+          "campaign_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "account_id",
+          "campaign_id"
+        ],
+        "type": "object"
+      },
+      "name": "linkedin_image_upload_link",
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Linkedin Image Upload Link"
+    },
+    {
+      "_meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      },
+      "annotations": {
         "readOnlyHint": true
       },
       "description": "List LinkedIn ad accounts accessible to the connected LinkedIn member, with paging.",
@@ -866,6 +901,88 @@
         "type": "object"
       },
       "title": "Linkedin Preview Create Campaign"
+    },
+    {
+      "_meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      },
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "readOnlyHint": false
+      },
+      "description": "Preview a complete paused LinkedIn single-image website ad using an AVAILABLE Page image. Requires separate browser approval before execution.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "account_id": {
+            "type": "string"
+          },
+          "campaign_id": {
+            "type": "string"
+          },
+          "creative": {
+            "additionalProperties": false,
+            "properties": {
+              "call_to_action": {
+                "enum": [
+                  "LEARN_MORE",
+                  "REGISTER",
+                  "SIGN_UP",
+                  "DOWNLOAD"
+                ],
+                "type": "string"
+              },
+              "commentary": {
+                "maxLength": 600,
+                "minLength": 1,
+                "type": "string"
+              },
+              "headline": {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              "image": {
+                "pattern": "^urn:li:image:[A-Za-z0-9_-]{1,200}$",
+                "type": "string"
+              },
+              "landing_page": {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              "name": {
+                "maxLength": 150,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "image",
+              "name",
+              "commentary",
+              "headline",
+              "landing_page",
+              "call_to_action"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "account_id",
+          "campaign_id",
+          "creative"
+        ],
+        "type": "object"
+      },
+      "name": "linkedin_preview_image_ad",
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Linkedin Preview Image Ad"
     },
     {
       "_meta": {

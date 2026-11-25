@@ -516,4 +516,4 @@ Viks Annonsverktyg can also connect directly to LinkedIn using the same hosted
 MCP endpoint, with a separate LinkedIn grant and account-specific write policy.
 See [setup, capabilities and rollout](docs/linkedin.md). LinkedIn defaults to
 dry-run. Campaign creation in this version creates paused campaign settings;
-creative upload and activation are not included.
+single-image website ads have a separate upload and approval flow. Activate in Campaign Manager.

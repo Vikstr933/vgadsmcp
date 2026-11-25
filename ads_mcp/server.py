@@ -22,8 +22,12 @@ from ads_mcp.write_approval import register_approval_routes
 from ads_mcp.linkedin_auth import register_linkedin_routes
 from ads_mcp.linkedin_approval import register_linkedin_approval_routes
 
+from ads_mcp.linkedin_upload import register_upload_route
+
 register_approval_routes(mcp)
 register_public_site_routes(mcp)
+
+register_upload_route(mcp)
 register_linkedin_routes(mcp)
 register_linkedin_approval_routes(mcp)
 

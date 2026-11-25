@@ -47,10 +47,18 @@ the caller's local grant; LinkedIn-side app revocation is managed on LinkedIn.
 - Separate password-protected browser approval, one-shot execution, status,
   and read-only reconciliation of uncertain or expired plans.
 
-Creation is **campaign settings only**. This version does not upload images,
-create creatives, create campaign groups, discover targeting URNs, activate
-delivery, delete objects, or offer an unrestricted API mutation tool. A preview
-is not a LinkedIn API validation request. No write occurs while previewing.
+For a paused STANDARD_UPDATE campaign with a website visit or conversion objective,
+call `linkedin_image_upload_link` with the account and campaign IDs. Open the
+ten-minute link as owner and submit a JPG or PNG (5 MiB and 16 megapixels max).
+The service uploads directly to the campaign Page's LinkedIn media library.
+Copy the returned image URN into `linkedin_preview_image_ad` together with the
+copy, headline, HTTPS destination and CTA. Preview waits for an AVAILABLE image
+owned by the campaign Page. Review the image and text in the owner approval
+page, then execute the plan once. The ad is created PAUSED and its account,
+campaign, name and paused status are checked. Activation is a separate manual
+decision in Campaign Manager. The member needs appropriate ad account and
+Page permissions to create Direct Sponsored Content.
+
 
 ## Enabling a particular account
 
