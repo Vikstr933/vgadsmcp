@@ -21,7 +21,7 @@ from starlette.responses import (
     RedirectResponse,
 )
 
-from ads_mcp.write_approval import HEADERS, authorized
+from ads_mcp.write_approval import HEADERS, browser_identity
 from ads_mcp.write_policy import WriteBlocked, digest
 
 COOKIE = "__Host-viks-linkedin-oauth"
@@ -196,22 +196,18 @@ async def connect_page(request):
     secret = os.getenv("GOOGLE_ADS_MCP_APPROVAL_SECRET", "")
     if len(secret) < 32:
         return PlainTextResponse(
-            "Ägarinloggningen är inte konfigurerad.", 503, headers=HEADERS
+            "Anslutningssidan saknar serverkonfiguration.", 503, headers=HEADERS
         )
-    if not authorized(request, secret):
-        return PlainTextResponse(
-            "Logga in som owner med ditt godkännandelösenord.",
-            401,
-            headers={
-                **HEADERS,
-                "WWW-Authenticate": 'Basic realm="Google Ads approvals", charset="UTF-8"',
-            },
-        )
+    owner, login = await browser_identity(request)
+    if login is not None:
+        return login
     try:
         settings = config()
         store = connection_store()
         ticket = request.path_params["ticket"]
-        await run_in_threadpool(store.peek, ticket, "connect")
+        target = await run_in_threadpool(store.peek, ticket, "connect")
+        if target.get("owner") != owner:
+            raise WriteBlocked("Anslutningslänken tillhör en annan användare.")
         proof = digest(
             {"secret": secret, "ticket": ticket, "purpose": "linkedin-connect"}
         )

@@ -68,21 +68,33 @@ def test_upload_form_requires_owner_origin_and_csrf():
             ]
         )
     )
-    auth = ("owner", policy().approval_secret)
+    secret = policy().approval_secret
     with (
+        patch(
+            "ads_mcp.connections.session",
+            side_effect=lambda r: (
+                {"owner": r.cookies["test-google"]}
+                if r.cookies.get("test-google")
+                else None
+            ),
+        ),
         patch("ads_mcp.linkedin_upload.approval_policy", return_value=policy()),
         patch("ads_mcp.linkedin_upload.connection_store") as db,
         patch("ads_mcp.linkedin_upload.send_image", return_value=IMAGE) as send,
     ):
         db.return_value.peek.return_value = {
+            "owner": "owner-a",
             "account": ACCOUNT,
             "campaign": CAMPAIGN,
             "organization": ORG,
         }
         assert client.get("/images/ticket").status_code == 401
-        assert client.get("/images/ticket", auth=auth).status_code == 200
+        client.cookies.set("test-google", "owner-b")
+        assert client.get("/images/ticket").status_code == 400
+        client.cookies.set("test-google", "owner-a")
+        assert client.get("/images/ticket").status_code == 200
         proof = digest(
-            {"secret": auth[1], "purpose": "upload", "ticket": "ticket"}
+            {"secret": secret, "purpose": "upload", "ticket": "ticket"}
         )
         for origin, csrf in (
             ("https://example.org", proof),
@@ -91,7 +103,6 @@ def test_upload_form_requires_owner_origin_and_csrf():
             assert (
                 client.post(
                     "/images/ticket",
-                    auth=auth,
                     headers={"origin": origin},
                     files={"image": ("a.png", png())},
                     data={"csrf": csrf},
@@ -101,7 +112,6 @@ def test_upload_form_requires_owner_origin_and_csrf():
         send.assert_not_called()
         result = client.post(
             "/images/ticket",
-            auth=auth,
             headers={"origin": policy().base_url},
             files={"image": ("a.png", png())},
             data={"csrf": proof},

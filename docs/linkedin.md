@@ -9,7 +9,7 @@ used, and the Node community server is not executed or proxied.
 Open `/anslutningar` on the service domain and choose the same Google account
 used in the MCP client. The dashboard uses the existing registered Google
 callback with a separate browser-bound state and PKCE flow. It lists directly
-accessible Google Ads account IDs. Choose LinkedIn, sign in as owner, and
+accessible Google Ads account IDs. Choose LinkedIn, use the same Google account as in your MCP client, and
 authorize LinkedIn. The saved LinkedIn grant is available in MCP clients using
 the same Google subject. The dashboard session expires after ten minutes.
 Installing the MCP connector in a new client still uses that client's OAuth
@@ -31,7 +31,7 @@ flow. The chat-based connection link remains available.
 4. Publish this source through the existing GitHub-to-Cloud-Build deployment.
 5. Refresh the MCP tool list in the client, call `linkedin_connection_status`,
    then `linkedin_connect`. Open the returned link in your own browser. Log in
-   as `owner` with the existing separate approval password, continue to LinkedIn,
+   with the same Google account you use for vAds, continue to LinkedIn,
    and authorize the account. The browser redirect URL is not the Google callback.
 6. Call `linkedin_list_accounts`, then list campaigns and request a short report.
    These are live read tests. Successful unit tests do not prove account access.
@@ -55,12 +55,12 @@ the caller's local grant; LinkedIn-side app revocation is managed on LinkedIn.
   conversions for an explicit date range. Attribution remains LinkedIn's.
 - Local-only previews of pausing, changing a daily budget, or creating PAUSED
   Sponsored Content campaign settings in an existing campaign group.
-- Separate password-protected browser approval, one-shot execution, status,
+- Browser approval bound to the proposal creator’s Google session, one-shot execution, status,
   and read-only reconciliation of uncertain or expired plans.
 
 For a paused STANDARD_UPDATE campaign with a website visit or conversion objective,
 call `linkedin_image_upload_link` with the account and campaign IDs. Open the
-ten-minute link as owner and submit a JPG or PNG (5 MiB and 16 megapixels max).
+ten-minute link with your Google session and submit a JPG or PNG (5 MiB and 16 megapixels max).
 The service uploads directly to the campaign Page's LinkedIn media library.
 Copy the returned image URN into `linkedin_preview_image_ad` together with the
 copy, headline, HTTPS destination and CTA. Preview waits for an AVAILABLE image

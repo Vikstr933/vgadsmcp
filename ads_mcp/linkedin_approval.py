@@ -12,7 +12,12 @@ from starlette.concurrency import run_in_threadpool
 from starlette.responses import HTMLResponse, PlainTextResponse
 
 from ads_mcp.linkedin_workflow import LinkedInPlanStore, approval_policy
-from ads_mcp.write_approval import HEADERS, authorized, csrf_token
+from ads_mcp.write_approval import (
+    HEADERS,
+    browser_identity,
+    confirmed,
+    csrf_token,
+)
 from ads_mcp.write_policy import WriteBlocked, digest
 from ads_mcp.write_store import check_plan
 
@@ -25,22 +30,16 @@ async def linkedin_approval_page(request):
         return PlainTextResponse(
             "LinkedIn-godkännanden är avstängda.", 503, headers=HEADERS
         )
-    if not authorized(request, policy.approval_secret):
-        return PlainTextResponse(
-            "Logga in som owner med ditt godkännandelösenord.",
-            401,
-            headers={
-                **HEADERS,
-                "WWW-Authenticate": 'Basic realm="Google Ads approvals", charset="UTF-8"',
-            },
-        )
+    owner, login = await browser_identity(request)
+    if login is not None:
+        return login
     try:
         plan_id = request.path_params["plan_id"]
         if not re.fullmatch(r"[a-f0-9]{32}", plan_id):
             raise WriteBlocked("Invalid plan.")
         store = LinkedInPlanStore(policy)
         plan = await run_in_threadpool(store.get, plan_id)
-        check_plan(plan)
+        check_plan(plan, owner)
         if plan["status"] != "pending_approval":
             raise WriteBlocked("Already handled.")
         expected = digest(
@@ -66,9 +65,7 @@ async def linkedin_approval_page(request):
                 if len(body) > 2048:
                     raise WriteBlocked("Form too large.")
             fields = parse_qs(body.decode())
-            if fields.get("csrf") != [csrf] or fields.get("confirm") != [
-                "GODKÄNN"
-            ]:
+            if fields.get("csrf") != [csrf] or not confirmed(fields):
                 raise WriteBlocked("Invalid proof.")
             if plan["change"]["action"] == "create_campaign" and fields.get(
                 "non_political"
@@ -77,7 +74,11 @@ async def linkedin_approval_page(request):
                     "Advertiser political intent confirmation is required."
                 )
             await run_in_threadpool(
-                store.transition, plan_id, "pending_approval", "approved"
+                store.transition,
+                plan_id,
+                "pending_approval",
+                "approved",
+                owner=owner,
             )
             return HTMLResponse(
                 '<!doctype html><html lang="sv"><meta charset="utf-8"><h1>LinkedIn-förslaget är godkänt</h1><p>Ingen annons har ändrats. Gå tillbaka till chatten och be om genomförande av exakt detta förslag.</p></html>',
@@ -152,7 +153,7 @@ async def linkedin_approval_page(request):
             "En skapad kampanj lämnas pausad om du avstår från fortsättning.</p>"
             f'<form method="post"><input type="hidden" name="csrf" value="{csrf}">'
             f"{political_confirmation}"
-            '<label>Skriv GODKÄNN <input name="confirm" required autocomplete="off" pattern="GODKÄNN"></label>'
+            '<label>Skriv Godkänn <input name="confirm" required autocomplete="off" ></label>'
             "<button>Godkänn förslaget</button></form></html>",
             headers=headers,
         )

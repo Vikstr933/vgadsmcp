@@ -94,13 +94,10 @@ hittas genom att fråga `customer_client` på MCC-kontot. Se
 5. Sätt `GOOGLE_ADS_MCP_WRITE_FIRESTORE_PROJECT` till ditt projekt-ID och
    `GOOGLE_ADS_MCP_WRITE_FIRESTORE_DATABASE` till databas-ID:t, exempelvis
    `(default)`. Ingen minnes- eller filbaserad reserv används för skrivning.
-6. Skapa ett separat slumpmässigt godkännandelösenord på minst 32 tecken i din
-   lösenordshanterare. Spara samma värde i Google Secret Manager och referera till
-   det från Cloud Run som `GOOGLE_ADS_MCP_APPROVAL_SECRET`. Runtime-servicekontot
-   behöver `roles/secretmanager.secretAccessor` på just den hemligheten.
-   **Lägg aldrig lösenordet i chatten, GitHub eller Claudes connector-headers.**
-   Godkännandesidan använder webbläsarens inloggningsruta: användarnamn `owner`,
-   lösenordet du sparade. MCP:s Google OAuth-token ger inte tillträde till sidan.
+6. Spara en slumpmässig signeringshemlighet på minst 32 tecken i Secret Manager
+   och referera till den från Cloud Run som `GOOGLE_ADS_MCP_APPROVAL_SECRET`.
+   Runtime-servicekontot behöver `roles/secretmanager.secretAccessor` på hemligheten.
+   Användaren loggar in på godkännandesidan med samma Google-konto som i vAds.
 7. Aktivera Firestore TTL på fältet `delete_after` för collection group
    `ads_mcp_write_plans`. Normala förslag/resultat markeras för radering efter
    30 dagar. TTL-radering är asynkron. Poster som kan ha skickat en ändring med
@@ -124,12 +121,13 @@ lagringen är separat från ändringsförslagen och innehåller OAuth-hemlighete
 
 ## Godkännande och datagränser
 
-Godkännandesidan använder separat HTTP Basic-inloggning över HTTPS, samma ursprung
-för formulär, HMAC-bundet CSRF-skydd, HTML-escaping, ingen tredjepartskod och
-`Cache-Control: no-store`. GET gör aldrig ett godkännande. Ett godkännande gäller
-exakt ett oförändrat förslag, en OAuth-användare och ett konto. Det separata
-ägarlösenordet är avsett för en enda betrodd ägare; dela det inte med agenter eller
-andra användare. Det ersätter inte en fleranvändarlösning med individuell attest.
+Både förhandsvisning och godkännande kräver en giltig webbläsarsession för den
+Google-användare som skapade förslaget. Sidan använder samma ursprung för
+formulär, HMAC-bundet CSRF-skydd och `Cache-Control: no-store`. Användaren
+granskar det aktuella förslaget och skriver Godkänn. Ägarskapet kontrolleras
+också i transaktionen som sparar godkännandet. Kontopolicy och plattformens
+behörigheter kontrolleras vid genomförandet.
+
 
 Firestore lagrar minsta nödvändiga före/efter-data, kampanjnamn och ID, tidpunkter,
 status och verifierat resultat. Det är annonsdata: begränsa läsning till servern

@@ -87,7 +87,7 @@ async def connection_status() -> dict:
 
 @linkedin_mcp.tool(annotations=PLAN)
 async def connect() -> dict:
-    """Create a one-use owner-protected LinkedIn login link, bound to this MCP user. The owner must complete it in their browser. Never log in or approve on their behalf."""
+    """Create a one-use Google-session-protected LinkedIn login link, bound to this MCP user. The owner must complete it in their browser. Never log in or approve on their behalf."""
 
     def begin():
         owner = principal()
@@ -98,7 +98,7 @@ async def connect() -> dict:
             + "/linkedin/connect/"
             + ticket,
             "expires_in_seconds": 600,
-            "instruction": "Open this in your own browser, sign in as owner, then authorize LinkedIn. No ads are changed.",
+            "instruction": "Open this in your own browser, use the same Google account as in vAds, then authorize LinkedIn. No ads are changed.",
         }
 
     return await guarded(begin)

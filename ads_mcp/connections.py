@@ -73,6 +73,12 @@ async def google_start(request):
         settings = config(storage_only=True)
         state = PREFIX + secrets.token_urlsafe(32)
         linkedin_first = request.query_params.get("kanal") == "linkedin"
+        target = request.query_params.get("till", "")
+        if not re.fullmatch(
+            r"/(?:(?:linkedin/)?approvals/[a-f0-9]{32}|linkedin/(?:connect|images/upload)/[A-Za-z0-9_-]{43})",
+            target,
+        ):
+            target = HOME
         verifier = secrets.token_urlsafe(48)
         challenge = (
             base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest())
@@ -100,7 +106,9 @@ async def google_start(request):
             response,
             FLOW,
             crypto()
-            .encrypt(json.dumps([state, verifier, linkedin_first]).encode())
+            .encrypt(
+                json.dumps([state, verifier, linkedin_first, target]).encode()
+            )
             .decode(),
         )
         return response
@@ -125,9 +133,11 @@ def google_accounts(token):
 
 async def google_callback(request):
     try:
-        state, verifier, linkedin_first = json.loads(
+        flow = json.loads(
             crypto().decrypt(request.cookies.get(FLOW, "").encode(), ttl=600)
         )
+        state, verifier, linkedin_first = flow[:3]
+        target = flow[3] if len(flow) == 4 else HOME
         if not secrets.compare_digest(
             state, request.query_params.get("state", "")
         ) or not request.query_params.get("code"):
@@ -187,7 +197,7 @@ async def google_callback(request):
         destination = (
             await run_in_threadpool(linkedin_link, owner)
             if linkedin_first
-            else HOME
+            else target
         )
         response = RedirectResponse(destination, 303, headers=HEAD)
         cookie(response, SESSION, sid)

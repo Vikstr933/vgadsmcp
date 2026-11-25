@@ -156,7 +156,7 @@ class LinkedInChange(BaseModel):
 
 
 def approval_policy():
-    # Only infrastructure and the independent owner password are shared with Google.
+    # Only infrastructure and the server-side signing secret are shared with Google.
     return replace(
         WritePolicy.load(),
         mode=os.getenv("LINKEDIN_MCP_WRITE_MODE", "dry_run"),

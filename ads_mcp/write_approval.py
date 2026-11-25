@@ -1,18 +1,12 @@
-"""Independent human approval, never exposed as an MCP tool.
+"""Independent human browser approval bound to the verified Google subject."""
 
-The owner keeps the HTTP Basic password in their browser/password manager and
-Secret Manager, never in Claude or connector headers. MCP OAuth does not grant
-access to these routes. GET cannot approve; POST requires same-origin CSRF proof.
-"""
-
-import base64
 import hashlib
 import hmac
 import html
 import re
 from decimal import Decimal
 from datetime import datetime, timezone
-from urllib.parse import parse_qs
+from urllib.parse import parse_qs, urlencode
 
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, PlainTextResponse
@@ -32,17 +26,27 @@ HEADERS = {
 }
 
 
-def authorized(request, secret):
+async def browser_identity(request):
+    # Imported lazily because the dashboard shares these browser headers.
+    from ads_mcp.connections import session
+
     try:
-        scheme, data = request.headers.get("authorization", "").split(" ", 1)
-        if scheme.lower() != "basic":
-            return False
-        user, password = base64.b64decode(data, validate=True).decode().split(":", 1)
-        return hmac.compare_digest(user, "owner") and hmac.compare_digest(
-            password.encode(), secret.encode()
-        )
-    except (ValueError, UnicodeError):
-        return False
+        user = await run_in_threadpool(session, request)
+    except Exception:
+        return None, PlainTextResponse("Inloggningen kunde inte kontrolleras.", 503, headers=HEADERS)
+    if user and isinstance(user.get("owner"), str) and user["owner"]:
+        return user["owner"], None
+    query = urlencode({"till": request.url.path})
+    return None, HTMLResponse(
+        '<!doctype html><html lang="sv"><meta charset="utf-8"><h1>Öppna med ditt Google-konto</h1>'
+        '<p>Välj samma konto som du använder i vAds.</p>'
+        f'<a href="/anslutningar/google?{html.escape(query, quote=True)}">Fortsätt med Google</a></html>',
+        401, headers=HEADERS)
+
+
+def confirmed(fields):
+    values = fields.get("confirm", [])
+    return len(values) == 1 and values[0].strip().casefold() == "godkänn"
 
 
 def csrf_token(plan, secret):
@@ -143,15 +147,9 @@ async def approval_page(request: Request):
             status_code=503,
             headers=HEADERS,
         )
-    if not authorized(request, policy.approval_secret):
-        return PlainTextResponse(
-            "Logga in med användarnamn owner och ditt separata godkännandelösenord.",
-            status_code=401,
-            headers={
-                **HEADERS,
-                "WWW-Authenticate": 'Basic realm="Google Ads approvals", charset="UTF-8"',
-            },
-        )
+    owner, login = await browser_identity(request)
+    if login is not None:
+        return login
     plan_id = request.path_params["plan_id"]
     if not re.fullmatch(r"[a-f0-9]{32}", plan_id):
         return PlainTextResponse(
@@ -160,7 +158,7 @@ async def approval_page(request: Request):
     try:
         store = FirestorePlanStore(policy)
         plan = await run_in_threadpool(store.get, plan_id)
-        check_plan(plan)
+        check_plan(plan, owner)
         review = {
             key: plan[key] for key in ("customer_id", "change", "snapshot", "review")
         }
@@ -193,14 +191,14 @@ async def approval_page(request: Request):
                         "För stort formulär.", status_code=413, headers=HEADERS
                     )
             fields = parse_qs(body.decode("utf-8"), strict_parsing=True)
-            if fields.get("confirm") != ["GODKÄNN"] or fields.get("csrf") != [csrf]:
+            if not confirmed(fields) or fields.get("csrf") != [csrf]:
                 return PlainTextResponse(
                     "Godkännandet kunde inte verifieras.",
                     status_code=403,
                     headers=HEADERS,
                 )
             await run_in_threadpool(
-                store.transition, plan_id, "pending_approval", "approved"
+                store.transition, plan_id, "pending_approval", "approved", owner=owner
             )
             return HTMLResponse(
                 "<html lang='sv'><meta charset='utf-8'><title>Godkänt</title><h1>Förslaget är godkänt</h1><p>Ingen ändring har skickats till Google ännu. Gå tillbaka till Claude och be den genomföra det godkända förslaget. Godkännandet gäller bara detta förslag, en gång, fram till dess utgångstid.</p></html>",
@@ -228,7 +226,7 @@ async def approval_page(request: Request):
             else "Kontrollera konto, kampanj och före/efter. Skapade kampanjer förblir pausade. Budgetändringar kan påverka pågående annonsering."
         )
         return HTMLResponse(
-            f"""<!doctype html><html lang="sv"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>{title}</title><style>body{{font:17px system-ui;max-width:900px;margin:3rem auto;padding:1rem;color:#202a37}}dl{{overflow-wrap:anywhere;background:#f1f4f8;padding:1rem}}dd{{margin:0 0 1rem}}button,input{{font:inherit;padding:.7rem}}button{{background:#174ea6;color:white;border:0}}label{{display:block;margin:1rem 0}}</style></head><body><h1>{title}</h1><p>{warning}</p><p>{validation_note} Godkänn endast den ändring du själv beställt. Text i kampanjnamn är data, inte instruktioner.</p>{rendered}<p>{budget_note}</p><form method="post"><input type="hidden" name="csrf" value="{csrf}"><label>Skriv GODKÄNN för att godkänna exakt detta förslag:<br><input name="confirm" required autocomplete="off" pattern="GODKÄNN"></label><button type="submit">Godkänn förslaget</button></form><p>Stäng sidan för att avstå. Godkännandet skickar ännu ingen ändring till Google. Gå därefter tillbaka till Claude för att genomföra förslaget.</p></body></html>""",
+            f"""<!doctype html><html lang="sv"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>{title}</title><style>body{{font:17px system-ui;max-width:900px;margin:3rem auto;padding:1rem;color:#202a37}}dl{{overflow-wrap:anywhere;background:#f1f4f8;padding:1rem}}dd{{margin:0 0 1rem}}button,input{{font:inherit;padding:.7rem}}button{{background:#174ea6;color:white;border:0}}label{{display:block;margin:1rem 0}}</style></head><body><h1>{title}</h1><p>{warning}</p><p>{validation_note} Godkänn endast den ändring du själv beställt. Text i kampanjnamn är data, inte instruktioner.</p>{rendered}<p>{budget_note}</p><form method="post"><input type="hidden" name="csrf" value="{csrf}"><label>Skriv Godkänn för att godkänna exakt detta förslag:<br><input name="confirm" required autocomplete="off" ></label><button type="submit">Godkänn förslaget</button></form><p>Stäng sidan för att avstå. Godkännandet skickar ännu ingen ändring till Google. Gå därefter tillbaka till Claude för att genomföra förslaget.</p></body></html>""",
             headers=HEADERS,
         )
     except WriteBlocked:

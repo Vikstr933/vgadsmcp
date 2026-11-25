@@ -393,7 +393,7 @@
         "idempotentHint": false,
         "readOnlyHint": false
       },
-      "description": "Create a one-use owner-protected LinkedIn login link, bound to this MCP user. The owner must complete it in their browser. Never log in or approve on their behalf.",
+      "description": "Create a one-use Google-session-protected LinkedIn login link, bound to this MCP user. The owner must complete it in their browser. Never log in or approve on their behalf.",
       "inputSchema": {
         "additionalProperties": false,
         "properties": {},

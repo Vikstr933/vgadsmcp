@@ -106,3 +106,23 @@ def test_existing_callbacks_and_browser_binding():
             follow_redirects=False,
         )
         assert direct.headers["location"].startswith("/linkedin/connect/")
+
+        proposal_path = "/approvals/" + "a" * 32
+        for requested, expected in (
+            (proposal_path, proposal_path),
+            ("//example.com", hub.HOME),
+        ):
+            begin = client.get(
+                hub.HOME + "/google",
+                params={"till": requested},
+                follow_redirects=False,
+            )
+            state = parse_qs(urlsplit(begin.headers["location"]).query)[
+                "state"
+            ][0]
+            result = client.get(
+                "/auth/callback",
+                params={"code": "test", "state": state},
+                follow_redirects=False,
+            )
+            assert result.headers["location"] == expected

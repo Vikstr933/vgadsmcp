@@ -1,6 +1,5 @@
 """Test that only the separate browser approval surface can authorize a plan."""
 
-import base64
 import json
 import unittest
 from unittest.mock import patch
@@ -52,16 +51,36 @@ class ApprovalTest(unittest.TestCase):
         for p in self.patches:
             p.start()
             self.addCleanup(p.stop)
-        self.headers = {
-            "Authorization": "Basic "
-            + base64.b64encode(
-                ("owner:" + self.policy.approval_secret).encode()
-            ).decode()
+        self.headers = {"Cookie": "test-google=owner-a"}
+        session = patch(
+            "ads_mcp.connections.session",
+            side_effect=lambda r: (
+                {"owner": r.cookies["test-google"]}
+                if r.cookies.get("test-google")
+                else None
+            ),
+        )
+        session.start()
+        self.addCleanup(session.stop)
+
+    def test_forwarded_plan_rejects_another_user(self):
+        headers = {
+            "Cookie": "test-google=owner-b",
+            "Origin": self.policy.base_url,
         }
+        for response in (
+            self.client.get(self.path, headers=headers),
+            self.client.post(self.path, data=self.form(), headers=headers),
+        ):
+            self.assertEqual(response.status_code, 409)
+            self.assertNotIn(self.plan_id, response.text)
+        self.assertEqual(
+            self.store.get(self.plan_id)["status"], "pending_approval"
+        )
 
     def form(self):
         return {
-            "confirm": "GODKÄNN",
+            "confirm": "Godkänn",
             "csrf": csrf_token(
                 self.store.get(self.plan_id), self.policy.approval_secret
             ),
@@ -114,7 +133,7 @@ class ApprovalTest(unittest.TestCase):
             ({"Origin": "https://evil.example"}, self.form()),
             (
                 {"Origin": self.policy.base_url},
-                {"confirm": "GODKÄNN", "csrf": "wrong"},
+                {"confirm": "Godkänn", "csrf": "wrong"},
             ),
             (
                 {"Origin": self.policy.base_url},

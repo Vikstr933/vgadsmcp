@@ -18,7 +18,7 @@ from ads_mcp.linkedin_creatives import (
     validate_image,
 )
 from ads_mcp.linkedin_workflow import account_policy, approval_policy
-from ads_mcp.write_approval import HEADERS, authorized
+from ads_mcp.write_approval import HEADERS, browser_identity
 from ads_mcp.write_policy import WriteBlocked, digest
 
 
@@ -73,20 +73,16 @@ async def upload_page(request):
         return PlainTextResponse(
             "LinkedIn-uppladdning är avstängd.", 503, headers=HEADERS
         )
-    if not authorized(request, policy.approval_secret):
-        return PlainTextResponse(
-            "Logga in som owner.",
-            401,
-            headers={
-                **HEADERS,
-                "WWW-Authenticate": 'Basic realm="Google Ads approvals"',
-            },
-        )
+    owner, login = await browser_identity(request)
+    if login is not None:
+        return login
     try:
         ticket = request.path_params["ticket"]
         target = await run_in_threadpool(
             lambda: connection_store().peek(ticket, "image-upload")
         )
+        if target.get("owner") != owner:
+            raise WriteBlocked("Uppladdningen tillhör en annan användare.")
         csrf = digest(
             {
                 "secret": policy.approval_secret,

@@ -1,6 +1,5 @@
 """Synthetic LinkedIn tests. No credentials, customer exports or live writes."""
 
-import base64
 import copy
 import json
 import re
@@ -308,13 +307,16 @@ class WorkflowTests(unittest.TestCase):
             base_url=self.workflow.policy.base_url,
         )
         path = "/linkedin/approvals/" + plan_id
-        headers = {
-            "Authorization": "Basic "
-            + base64.b64encode(
-                ("owner:" + self.workflow.policy.approval_secret).encode()
-            ).decode()
-        }
+        headers = {"Cookie": "test-google=owner-a"}
         with (
+            patch(
+                "ads_mcp.connections.session",
+                side_effect=lambda r: (
+                    {"owner": r.cookies["test-google"]}
+                    if r.cookies.get("test-google")
+                    else None
+                ),
+            ),
             patch(
                 "ads_mcp.linkedin_approval.approval_policy",
                 return_value=self.workflow.policy,
@@ -325,6 +327,12 @@ class WorkflowTests(unittest.TestCase):
             ),
         ):
             self.assertEqual(client.get(path).status_code, 401)
+            wrong = {
+                "Cookie": "test-google=owner-b",
+                "Origin": self.workflow.policy.base_url,
+            }
+            self.assertEqual(client.get(path, headers=wrong).status_code, 409)
+            self.assertEqual(client.post(path, headers=wrong).status_code, 409)
             self.assertEqual(client.get(path, headers=headers).status_code, 200)
             self.assertEqual(
                 self.store.plans[plan_id]["status"], "pending_approval"
@@ -376,11 +384,17 @@ class HTTPTests(unittest.TestCase):
             base_url=self.settings["base_url"],
         )
         self.secret = "synthetic-owner-password-1234567890123456"
-        self.headers = {
-            "Authorization": "Basic "
-            + base64.b64encode(("owner:" + self.secret).encode()).decode()
-        }
+        self.headers = {"Cookie": "test-google=synthetic-owner"}
+        self.store.peek.return_value = {"owner": "synthetic-owner"}
         for p in (
+            patch(
+                "ads_mcp.connections.session",
+                side_effect=lambda r: (
+                    {"owner": r.cookies["test-google"]}
+                    if r.cookies.get("test-google")
+                    else None
+                ),
+            ),
             patch("ads_mcp.linkedin_auth.config", return_value=self.settings),
             patch(
                 "ads_mcp.linkedin_auth.connection_store",
@@ -396,6 +410,12 @@ class HTTPTests(unittest.TestCase):
     def test_connect_requires_owner_and_get_never_redirects_or_consumes(self):
         path = "/linkedin/connect/" + "A" * 43
         self.assertEqual(self.client.get(path).status_code, 401)
+        self.assertEqual(
+            self.client.get(
+                path, headers={"Cookie": "test-google=other"}
+            ).status_code,
+            409,
+        )
         result = self.client.get(path, headers=self.headers)
         self.assertEqual(result.status_code, 200)
         self.assertEqual(result.headers["cache-control"], "no-store")
