@@ -46,6 +46,9 @@ def test_existing_callbacks_and_browser_binding():
             hub, "config", return_value={"base_url": "https://testserver"}
         ),
         patch.object(hub, "connection_store", return_value=db),
+        patch.object(hub, "member_state", return_value="active") as member,
+        patch.object(hub.google_grant, "grant_ref"),
+        patch.object(hub.google_grant, "save") as save,
         patch.object(hub, "google_accounts", return_value=["123"]),
         patch.object(
             hub, "linkedin_details", return_value="LinkedIn-konto 456"
@@ -61,11 +64,12 @@ def test_existing_callbacks_and_browser_binding():
             **{
                 "json.return_value": {
                     "sub": "member-1",
+                    "email_verified": True,
                     "email": "v@example.com",
                 }
             }
         )
-        assert "Anslut Google Ads" in client.get(hub.HOME).text
+        assert "Mitt konto" in client.get(hub.HOME).text
         assert (
             client.get("/auth/callback?state=ordinary").text
             == "original callback"
@@ -78,6 +82,19 @@ def test_existing_callbacks_and_browser_binding():
         http.post.assert_not_called()
         assert client.get(callback).status_code == 200
         assert "secret-token" not in str(docs)
+        assert params["scope"] == ["openid email"]
+        begin_ads = client.get(
+            hub.HOME + "/google?kanal=google", follow_redirects=False
+        )
+        ads_params = parse_qs(urlsplit(begin_ads.headers["location"]).query)
+        assert hub.ADS in ads_params["scope"][0]
+        assert (
+            client.get(
+                "/auth/callback?code=ads&state=" + ads_params["state"][0]
+            ).status_code
+            == 200
+        )
+        save.assert_called_once()
         dashboard = client.get(hub.HOME)
         assert all(x in dashboard.text for x in ("123", "456", "v@example.com"))
         assert (
@@ -127,3 +144,8 @@ def test_existing_callbacks_and_browser_binding():
                 follow_redirects=False,
             )
             assert result.headers["location"] == expected
+        member.return_value = "pending"
+        begin = client.get(
+            hub.HOME + "/google?kanal=google", follow_redirects=False
+        )
+        assert begin.headers["location"] == hub.ACCOUNT

@@ -17,6 +17,14 @@ from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, RedirectResponse
 
+from ads_mcp import google_grant
+from ads_mcp.membership import (
+    ACCOUNT,
+    ADMIN,
+    membership_page,
+    member_state,
+    verified_user,
+)
 from ads_mcp.activity import PATH as ACTIVITY_PATH, activity_page, is_admin
 from ads_mcp.linkedin_auth import config, connection_store
 from ads_mcp.linkedin_client import LinkedInAPI
@@ -77,11 +85,20 @@ async def google_start(request):
         state = PREFIX + secrets.token_urlsafe(32)
         linkedin_first = request.query_params.get("kanal") == "linkedin"
         target = request.query_params.get("till", "")
-        if target != ACTIVITY_PATH and not re.fullmatch(
+        if target not in (ACTIVITY_PATH, ACCOUNT, ADMIN) and not re.fullmatch(
             r"/(?:(?:linkedin/)?approvals/[a-f0-9]{32}|linkedin/(?:connect|images/upload)/[A-Za-z0-9_-]{43})",
             target,
         ):
             target = HOME
+        bound = None
+        if request.query_params.get("kanal") == "google":
+            current = await run_in_threadpool(session, request)
+            if (
+                not current
+                or await run_in_threadpool(member_state, current) != "active"
+            ):
+                return RedirectResponse(ACCOUNT, 303, headers=HEAD)
+            bound = current["owner"]
         verifier = secrets.token_urlsafe(48)
         challenge = (
             base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest())
@@ -93,8 +110,11 @@ async def google_start(request):
                 "client_id": os.environ["GOOGLE_ADS_MCP_OAUTH_CLIENT_ID"],
                 "redirect_uri": settings["base_url"] + "/auth/callback",
                 "response_type": "code",
-                "scope": "openid email " + ADS,
-                "prompt": "select_account",
+                "scope": "openid email " + ADS if bound else "openid email",
+                "prompt": (
+                    "select_account consent" if bound else "select_account"
+                ),
+                **({"access_type": "offline"} if bound else {}),
                 "state": state,
                 "code_challenge": challenge,
                 "code_challenge_method": "S256",
@@ -110,7 +130,9 @@ async def google_start(request):
             FLOW,
             crypto()
             .encrypt(
-                json.dumps([state, verifier, linkedin_first, target]).encode()
+                json.dumps(
+                    [state, verifier, linkedin_first, target, bound]
+                ).encode()
             )
             .decode(),
         )
@@ -119,9 +141,9 @@ async def google_start(request):
         return page("Google-inloggningen kunde inte startas.", 503)
 
 
-def google_accounts(token):
+def google_accounts(credentials):
     client = GoogleAdsClient(
-        credentials=Credentials(token=token),
+        credentials=credentials,
         developer_token=os.getenv("GOOGLE_ADS_DEVELOPER_TOKEN"),
         use_proto_plus=True,
     )
@@ -140,7 +162,8 @@ async def google_callback(request):
             crypto().decrypt(request.cookies.get(FLOW, "").encode(), ttl=600)
         )
         state, verifier, linkedin_first = flow[:3]
-        target = flow[3] if len(flow) == 4 else HOME
+        target = flow[3] if len(flow) >= 4 else HOME
+        bound = flow[4] if len(flow) >= 5 else None
         if not secrets.compare_digest(
             state, request.query_params.get("state", "")
         ) or not request.query_params.get("code"):
@@ -170,27 +193,25 @@ async def google_callback(request):
             )
             info.raise_for_status()
             user = info.json()
-        subject = user["sub"]
-        if not isinstance(subject, str) or not subject:
-            raise ValueError("Missing subject")
-        owner = digest({"provider": "google", "subject": subject})
-        try:
-            ids = await run_in_threadpool(google_accounts, token)
-        except Exception:
-            ids = None
-        # Snapshot only. Browser sessions contain no Google access or refresh tokens.
+        identity = verified_user(user)
+        owner = identity["owner"]
+        if bound and bound != owner:
+            raise WriteBlocked(
+                "Välj samma Google-konto som du använder för ditt medlemskap."
+            )
+        state = await run_in_threadpool(member_state, identity, signup=True)
+        ids = None
+        if bound and state == "active":
+            await run_in_threadpool(google_grant.save, owner, exchange.json())
+            try:
+                ids = await run_in_threadpool(
+                    google_accounts, Credentials(token=token)
+                )
+            except Exception:
+                pass
         snapshot = (
             crypto()
-            .encrypt(
-                json.dumps(
-                    {
-                        "owner": owner,
-                        "email": user.get("email", ""),
-                        "email_verified": user.get("email_verified") is True,
-                        "accounts": ids,
-                    }
-                ).encode()
-            )
+            .encrypt(json.dumps({**identity, "accounts": ids}).encode())
             .decode()
         )
         sid = await run_in_threadpool(
@@ -200,11 +221,13 @@ async def google_callback(request):
         )
         destination = (
             await run_in_threadpool(linkedin_link, owner)
-            if linkedin_first
-            else target
+            if linkedin_first and state == "active"
+            else (target if state == "active" else ACCOUNT)
         )
         response = RedirectResponse(destination, 303, headers=HEAD)
         cookie(response, SESSION, sid)
+    except WriteBlocked as exc:
+        response = page(html.escape(str(exc)), 403)
     except Exception:
         response = page(
             '<p>Google-inloggningen avbröts eller hann gå ut.</p><a href="/anslutningar">Försök igen</a>',
@@ -300,11 +323,13 @@ async def dashboard(request):
         if not user:
             return page(
                 "<section><h2>Google Ads</h2><p>Välj samma Google-konto som du använder för vAds i Claude.</p>"
-                '<a class="btn" href="/anslutningar/google">Anslut Google Ads</a></section>'
+                '<a class="btn" href="/anslutningar/google?till=/mitt-konto">Öppna eller skapa Mitt konto</a></section>'
                 "<section><h2>LinkedIn Ads</h2><p>Välj ditt Google-konto och fortsätt sedan till LinkedIn.</p>"
                 '<a class="btn" href="/anslutningar/google?kanal=linkedin">Anslut LinkedIn</a></section>'
                 '<small>Administratörerna kan se aktiva dagar och antal verktygsanrop per användare. <a href="/privacy.html">Integritetspolicy</a></small>'
             )
+        if await run_in_threadpool(member_state, user) != "active":
+            return RedirectResponse(ACCOUNT, 303, headers=HEAD)
         if request.method == "POST":
             if (
                 request.headers.get("origin")
@@ -315,14 +340,26 @@ async def dashboard(request):
             return RedirectResponse(destination, 303, headers=HEAD)
         ids = user["accounts"]
         if ids is None:
-            google = "Google Ads kunde inte returnera annonskontona. Kontrollera behörigheten eller försök igen."
-        elif ids:
+            linked = await run_in_threadpool(
+                lambda: google_grant.grant_ref(user["owner"]).get().exists
+            )
+            google = "Anslut Google Ads här för att använda kanalen med ditt Viks-konto."
+            if linked:
+                try:
+                    ids = await run_in_threadpool(
+                        lambda: google_accounts(
+                            google_grant.credentials(user["owner"])
+                        )
+                    )
+                except Exception:
+                    google = "Google Ads är anslutet men kontolistan kunde inte hämtas."
+        if ids:
             google = (
                 "Direkt åtkomliga annons- och förvaltarkonton<ul>"
                 + "".join("<li>" + html.escape(i) + "</li>" for i in ids)
                 + "</ul>"
             )
-        else:
+        elif ids == []:
             google = "Inga direkt åtkomliga annonskonton hittades."
         linkedin = await run_in_threadpool(
             linkedin_details,
@@ -332,7 +369,7 @@ async def dashboard(request):
         return page(
             "<p>Inloggad med "
             + html.escape(user["email"])
-            + ".</p>"
+            + '. · <a href="/mitt-konto">Mitt konto</a></p>'
             + (
                 '<p><a href="/admin/aktivitet">Visa användaraktivitet</a></p>'
                 if is_admin(user)
@@ -340,7 +377,7 @@ async def dashboard(request):
             )
             + "<section><h2>Google Ads</h2>"
             + google
-            + '<p><a href="/anslutningar/google">Välj Google-konto igen</a></p></section><section><h2>LinkedIn Ads</h2>'
+            + '<p><a href="/anslutningar/google?kanal=google">Anslut Google Ads eller förnya åtkomsten</a></p></section><section><h2>LinkedIn Ads</h2>'
             + linkedin
             + '<form method="post"><button>Anslut LinkedIn</button></form></section>'
             "<small>Använd samma Google-konto när du lägger till vAds i din AI-klient. Den här sidan är inloggad i tio minuter.</small>"
@@ -353,6 +390,8 @@ async def dashboard(request):
 
 
 def register_dashboard(mcp):
+    for path in (ACCOUNT, ADMIN):
+        mcp.custom_route(path, methods=["GET", "POST"])(membership_page)
     mcp.custom_route(ACTIVITY_PATH, methods=["GET"])(activity_page)
     mcp.custom_route(HOME, methods=["GET", "POST"])(dashboard)
     mcp.custom_route(HOME + "/google", methods=["GET"])(google_start)

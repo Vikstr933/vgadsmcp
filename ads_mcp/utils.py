@@ -76,7 +76,11 @@ def _create_credentials() -> google.auth.credentials.Credentials:
     token_obj = get_access_token()
     if token_obj and token_obj.token:
         # Create credentials using the access token provided by FastMCP
-        return Credentials(token=token_obj.token)
+        if _ADS_SCOPE in token_obj.scopes:
+            return Credentials(token=token_obj.token)
+        from ads_mcp.google_grant import credentials
+        from ads_mcp.write_policy import principal
+        return credentials(principal())
 
     with prevent_stdio_inheritance():
         credentials, _ = google.auth.default(scopes=[_ADS_SCOPE])

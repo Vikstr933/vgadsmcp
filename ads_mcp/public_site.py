@@ -25,8 +25,9 @@ ASSETS = {
 def register_public_site_routes(mcp):
     for path, (body, media_type) in ASSETS.items():
         if path == "/":
-            body = body.replace('<div class="actions">', '<div class="actions"><a class="button" href="/anslutningar">Mina anslutningar</a>')
+            body = body.replace('<div class="actions">', '<div class="actions"><a class="button" href="/mitt-konto">Skapa konto eller logga in</a>')
         if path == "/privacy.html":
+            body = body.replace("</article>", "<h2>Viks-medlemskap</h2><p>När du registrerar dig sparar vi din verifierade Google-identitet, krypterad e-postadress och din åtkomststatus. Administratörerna granskar ansökningar från externa användare. Medlemskapet är kostnadsfritt. När du ansluter Google Ads separat sparas dina åtkomstuppgifter krypterat för att kunna hämta och förnya åtkomsten. För att avsluta medlemskapet eller begära radering, använd kontaktadressen ovan.</p></article>")
             body = body.replace("</article>", "<h2>Användarstatistik</h2><p>Behöriga administratörer för Viks Annonsverktyg ser Google-adress, antal verktygsanrop, aktiva dagar och senaste aktiva datum för de senaste 30 dagarna. Vi summerar per användare och svensk kalenderdag från första anropet. Statistikposten innehåller inga frågor, verktygsnamn, annonskonton eller svar. E-postadressen lagras krypterad. Statistikposter får en raderingsmarkering efter 30 dagar. Automatisk radering förutsätter aktiverad TTL.</p></article>")
             body = body.replace("Webbplatsen visar endast appinformation, policy och villkor. Den innehåller inga annonsrapporter, inga formulär för Google-inloggning och ingen egen analys- eller reklamkod.", "På sidan Mina anslutningar kan du identifiera dig med Google och se dina åtkomliga annonskonton. En skyddad webbläsarkaka identifierar din tillfälliga session. Kontoöversikten lagras krypterad och kan öppnas i tio minuter.")
             body = body.replace(

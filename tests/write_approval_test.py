@@ -39,6 +39,7 @@ class ApprovalTest(unittest.TestCase):
             base_url=self.policy.base_url,
         )
         self.patches = [
+            patch("ads_mcp.membership.active_owner",return_value=True),
             patch(
                 "ads_mcp.write_approval.WritePolicy.load",
                 return_value=self.policy,

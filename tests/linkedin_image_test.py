@@ -70,6 +70,7 @@ def test_upload_form_requires_owner_origin_and_csrf():
     )
     secret = policy().approval_secret
     with (
+        patch("ads_mcp.membership.active_owner",return_value=True),
         patch(
             "ads_mcp.connections.session",
             side_effect=lambda r: (

@@ -35,7 +35,13 @@ async def browser_identity(request):
     except Exception:
         return None, PlainTextResponse("Inloggningen kunde inte kontrolleras.", 503, headers=HEADERS)
     if user and isinstance(user.get("owner"), str) and user["owner"]:
-        return user["owner"], None
+        from ads_mcp.membership import active_owner
+        try:
+            if await run_in_threadpool(active_owner,user["owner"]):
+                return user["owner"], None
+        except Exception:
+            return None, PlainTextResponse("Medlemskapet kunde inte kontrolleras.",503,headers=HEADERS)
+        return None, HTMLResponse('<a href="/mitt-konto">Öppna ditt Viks-konto för att få åtkomst</a>',403,headers=HEADERS)
     query = urlencode({"till": request.url.path})
     return None, HTMLResponse(
         '<!doctype html><html lang="sv"><meta charset="utf-8"><h1>Öppna med ditt Google-konto</h1>'

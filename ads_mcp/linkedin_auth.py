@@ -301,6 +301,9 @@ async def callback_page(request):
             "callback",
             browser,
         )
+        from ads_mcp.membership import active_owner
+        if not await run_in_threadpool(active_owner,data["owner"]):
+            raise WriteBlocked("Aktivt medlemskap krävs.")
         if request.query_params.get("error") or not request.query_params.get(
             "code"
         ):

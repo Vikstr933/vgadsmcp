@@ -6,10 +6,15 @@ used, and the Node community server is not executed or proxied.
 
 ## Connection dashboard
 
+Open `/mitt-konto` to register with Google (openid and email only). Verified
+SocialZense Workspace users and service admins receive free membership directly.
+External users request access and an administrator decides in `/admin/medlemmar`.
+Membership is checked server-side on MCP tool calls, resource reads, prompts,
+channel connections and approval pages. Membership grants no platform roles.
 Open `/anslutningar` on the service domain and choose the same Google account
 used in the MCP client. The dashboard uses the existing registered Google
-callback with a separate browser-bound state and PKCE flow. It lists directly
-accessible Google Ads account IDs. Choose LinkedIn, use the same Google account as in your MCP client, and
+callback with a separate browser-bound state and PKCE flow. Connecting Google Ads separately requests its Ads scope and stores an encrypted
+refreshable grant. Existing MCP sessions carrying Ads scope can still use it. Choose LinkedIn, use the same Google account as in your MCP client, and
 authorize LinkedIn. The saved LinkedIn grant is available in MCP clients using
 the same Google subject. The dashboard session expires after ten minutes.
 Installing the MCP connector in a new client still uses that client's OAuth

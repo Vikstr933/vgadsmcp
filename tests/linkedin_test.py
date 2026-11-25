@@ -309,6 +309,7 @@ class WorkflowTests(unittest.TestCase):
         path = "/linkedin/approvals/" + plan_id
         headers = {"Cookie": "test-google=owner-a"}
         with (
+            patch("ads_mcp.membership.active_owner",return_value=True),
             patch(
                 "ads_mcp.connections.session",
                 side_effect=lambda r: (
@@ -387,6 +388,7 @@ class HTTPTests(unittest.TestCase):
         self.headers = {"Cookie": "test-google=synthetic-owner"}
         self.store.peek.return_value = {"owner": "synthetic-owner"}
         for p in (
+            patch("ads_mcp.membership.active_owner",return_value=True),
             patch(
                 "ads_mcp.connections.session",
                 side_effect=lambda r: (

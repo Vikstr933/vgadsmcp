@@ -42,7 +42,6 @@ if _CLIENT_ID and _CLIENT_SECRET:
             "openid",
             "https://www.googleapis.com/auth/userinfo.email",
             "https://www.googleapis.com/auth/userinfo.profile",
-            "https://www.googleapis.com/auth/adwords",
         ],
     }
     if _JWT_SIGNING_KEY:
@@ -52,8 +51,10 @@ if _CLIENT_ID and _CLIENT_SECRET:
 
     auth = GoogleProvider(**provider_kwargs)
     from ads_mcp.activity import ActivityCounts
+    from ads_mcp.membership import MemberGate
 
     mcp = FastMCP("Google Ads Server", auth=auth)
+    mcp.add_middleware(MemberGate())
     mcp.add_middleware(ActivityCounts())
 else:
     mcp = FastMCP("Google Ads Server")
