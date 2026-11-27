@@ -3,6 +3,7 @@
 import os
 import re
 from datetime import date
+from urllib.parse import quote
 
 import httpx
 
@@ -19,6 +20,19 @@ def linkedin_id(value: str) -> str:
     ):
         raise WriteBlocked("Use the numeric LinkedIn object ID, without a URN.")
     return value
+
+
+def _restli_value(value):
+    # Encode scalar values while leaving the Rest.li structure on the wire.
+    if isinstance(value, dict):
+        fields = (
+            f"{quote(key, safe='')}:{_restli_value(item)}"
+            for key, item in value.items()
+        )
+        return "(" + ",".join(fields) + ")"
+    if isinstance(value, list):
+        return "List(" + ",".join(map(_restli_value, value)) + ")"
+    return quote(str(value), safe="")
 
 
 class LinkedInAPI:
@@ -48,12 +62,23 @@ class LinkedInAPI:
             headers["X-RestLi-Method"] = "FINDER"
         if partial:
             headers["X-RestLi-Method"] = "PARTIAL_UPDATE"
+        url = httpx.URL("https://api.linkedin.com/rest/" + path)
+        if params:
+            query = "&".join(
+                f"{quote(key, safe='')}="
+                + (
+                    quote(value, safe=",")
+                    if key == "fields"
+                    else _restli_value(value)
+                )
+                for key, value in params.items()
+            )
+            url = url.copy_with(query=query.encode("ascii"))
         try:
             with httpx.Client(timeout=30, follow_redirects=False) as client:
                 response = client.request(
                     method,
-                    "https://api.linkedin.com/rest/" + path,
-                    params=params,
+                    url,
                     json=body,
                     headers=headers,
                 )
@@ -107,7 +132,20 @@ class LinkedInAPI:
             params=self.page_params(
                 page_token,
                 count,
-                "(status:(values:List(ACTIVE,PAUSED,DRAFT,ARCHIVED,COMPLETED,CANCELED,PENDING_DELETION,REMOVED)))",
+                {
+                    "status": {
+                        "values": [
+                            "ACTIVE",
+                            "PAUSED",
+                            "DRAFT",
+                            "ARCHIVED",
+                            "COMPLETED",
+                            "CANCELED",
+                            "PENDING_DELETION",
+                            "REMOVED",
+                        ]
+                    }
+                },
             ),
         )[0]
 
@@ -118,7 +156,11 @@ class LinkedInAPI:
             params=self.page_params(
                 page_token,
                 count,
-                "(status:(values:List(ACTIVE,PAUSED,DRAFT,ARCHIVED)))",
+                {
+                    "status": {
+                        "values": ["ACTIVE", "PAUSED", "DRAFT", "ARCHIVED"]
+                    }
+                },
             ),
         )[0]
 
@@ -160,7 +202,7 @@ class LinkedInAPI:
             )
 
         def rest_date(value):
-            return f"(year:{value.year},month:{value.month},day:{value.day})"
+            return {"year": value.year, "month": value.month, "day": value.day}
 
         data = self.request(
             "GET",
@@ -169,8 +211,10 @@ class LinkedInAPI:
                 "q": "analytics",
                 "pivot": "CAMPAIGN",
                 "timeGranularity": "DAILY",
-                "accounts": f"List(urn:li:sponsoredAccount:{linkedin_id(account_id)})",
-                "dateRange": f"(start:{rest_date(start)},end:{rest_date(end)})",
+                "accounts": [
+                    f"urn:li:sponsoredAccount:{linkedin_id(account_id)}"
+                ],
+                "dateRange": {"start": rest_date(start), "end": rest_date(end)},
                 "fields": "dateRange,pivotValues,impressions,clicks,costInLocalCurrency,externalWebsiteConversions",
             },
         )[0]

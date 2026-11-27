@@ -309,7 +309,7 @@ class WorkflowTests(unittest.TestCase):
         path = "/linkedin/approvals/" + plan_id
         headers = {"Cookie": "test-google=owner-a"}
         with (
-            patch("ads_mcp.membership.active_owner",return_value=True),
+            patch("ads_mcp.membership.active_owner", return_value=True),
             patch(
                 "ads_mcp.connections.session",
                 side_effect=lambda r: (
@@ -388,7 +388,7 @@ class HTTPTests(unittest.TestCase):
         self.headers = {"Cookie": "test-google=synthetic-owner"}
         self.store.peek.return_value = {"owner": "synthetic-owner"}
         for p in (
-            patch("ads_mcp.membership.active_owner",return_value=True),
+            patch("ads_mcp.membership.active_owner", return_value=True),
             patch(
                 "ads_mcp.connections.session",
                 side_effect=lambda r: (
@@ -509,17 +509,43 @@ class HTTPTests(unittest.TestCase):
 
 
 class ClientTests(unittest.TestCase):
-    def test_search_uses_linkedin_cursor_pagination_and_required_criteria(self):
+    def test_linkedin_read_requests_use_restli_query_syntax(self):
+        requests = []
+
+        def capture(request):
+            requests.append(request)
+            return httpx.Response(200, json={"elements": []})
+
         api = LinkedInAPI("synthetic")
-        with patch.object(
-            api, "request", return_value=({"elements": []}, None)
-        ) as request:
-            api.campaigns(ACCOUNT, page_token="synthetic-next-page", count=25)
-            params = request.call_args.kwargs["params"]
-            self.assertEqual(params["pageToken"], "synthetic-next-page")
-            self.assertEqual(params["pageSize"], 25)
-            self.assertIn("status", params["search"])
-            self.assertNotIn("start", params)
+        clients = [
+            httpx.Client(transport=httpx.MockTransport(capture))
+            for _ in range(4)
+        ]
+        with patch("ads_mcp.linkedin_client.httpx.Client", side_effect=clients):
+            api.accounts(count=25)
+            api.campaigns(ACCOUNT, page_token="next/+&=", count=25)
+            api.groups(ACCOUNT)
+            api.report(ACCOUNT, "2026-11-20", "2026-11-27")
+
+        self.assertEqual(requests[0].url.query, b"q=search&pageSize=25")
+        self.assertEqual(
+            requests[1].url.query,
+            b"q=search&pageSize=25&pageToken=next%2F%2B%26%3D"
+            b"&search=(status:(values:List(ACTIVE,PAUSED,DRAFT,ARCHIVED,"
+            b"COMPLETED,CANCELED,PENDING_DELETION,REMOVED)))",
+        )
+        self.assertEqual(
+            requests[2].url.query,
+            b"q=search&pageSize=100&search=(status:(values:List(ACTIVE,PAUSED,DRAFT,ARCHIVED)))",
+        )
+        self.assertEqual(
+            requests[3].url.query,
+            b"q=analytics&pivot=CAMPAIGN&timeGranularity=DAILY"
+            b"&accounts=List(urn%3Ali%3AsponsoredAccount%3A111222333)"
+            b"&dateRange=(start:(year:2026,month:11,day:20),end:(year:2026,month:11,day:27))"
+            b"&fields=dateRange,pivotValues,impressions,clicks,costInLocalCurrency,externalWebsiteConversions",
+        )
+        self.assertTrue(all(request.method == "GET" for request in requests))
 
     def test_invalid_ids_and_date_windows(self):
         for value in (

@@ -151,7 +151,7 @@ def verify_creative(api, account, proposed, receipt):
     if not urn:
         params = {
             "q": "criteria",
-            "campaigns": f"List({proposed['campaign']})",
+            "campaigns": [proposed["campaign"]],
             "pageSize": 100,
         }
         matches = []
