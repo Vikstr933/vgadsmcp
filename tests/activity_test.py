@@ -15,7 +15,7 @@ from ads_mcp import activity as a
 
 def test_counts_tools_only_once_across_a_mount_and_survives_a_storage_failure():
     outer = FastMCP("outer")
-    outer.add_middleware(a.ActivityCounts())
+    outer.add_middleware(a.ActivityCounts({"inner_example": "gtm"}))
     inner = FastMCP("inner")
 
     @inner.tool
@@ -34,6 +34,7 @@ def test_counts_tools_only_once_across_a_mount_and_survives_a_storage_failure():
             assert args[:2] == ("123", "member@example.com") and isinstance(
                 args[2], date
             )
+            assert args[3] == "gtm"
             counter.side_effect = RuntimeError()
             result = await client.call_tool("inner_example", {})
             assert not result.is_error and result.content[0].text == "ok"
@@ -53,12 +54,20 @@ def test_counts_tools_only_once_across_a_mount_and_survives_a_storage_failure():
 
 
 def test_daily_summary_and_one_through_nine_calls():
+    client = MagicMock()
     c = MagicMock()
     cipher = Fernet(Fernet.generate_key())
     day = date(2026, 11, 25)
-    with patch.object(a, "storage", return_value=(c, cipher)):
-        a.count_call("private-id", "a@example.com", day)
-        value = c.document.return_value.set.call_args.args[0]
+    with patch.object(a, "storage", return_value=(client, c, cipher)):
+        a.count_call("private-id", "a@example.com", day, "gtm")
+        batch = client.batch.return_value
+        user_write, product_write = batch.set.call_args_list
+        value = user_write.args[1]
+        product = product_write.args[1]
+        assert set(product) == {"day", "product", "calls", "delete_after"}
+        assert product["product"] == "gtm" and product["calls"].value == 1
+        assert c.document.call_args.args[0] == "product_2026-11-25_gtm"
+        batch.commit.assert_called_once_with(retry=None, timeout=2)
         assert set(value) == {"day", "user", "calls", "label", "delete_after"}
         assert value["calls"].value == 1
         assert "private-id" not in str(value) and "a@example.com" not in str(
@@ -76,8 +85,31 @@ def test_daily_summary_and_one_through_nine_calls():
             doc("a", "2026-11-25", 1),
             doc("b", "2026-11-23", 9),
             doc("c", "2026-11-25", 1),
+            SimpleNamespace(
+                to_dict=lambda: {
+                    "day": "2026-11-25",
+                    "product": "gtm",
+                    "calls": 5,
+                }
+            ),
+            SimpleNamespace(
+                to_dict=lambda: {
+                    "day": "2026-11-25",
+                    "product": "google_ads",
+                    "calls": 2,
+                }
+            ),
         ]
-        stats = a.ranking(day)
+        stats, products = a.activity_summary(day)
+        assert products == {
+            "google_ads": 2,
+            "gtm": 5,
+            "linkedin": 0,
+            "other": 0,
+        }
+        html = a.product_summary_html(products, 12)
+        assert html.index("Google Tag Manager") < html.index(">Google Ads<")
+        assert "5 tidigare anrop" in html
         assert [(r["days"], r["calls"], r["last"]) for r in stats] == [
             (2, 2, "2026-11-25"),
             (1, 9, "2026-11-23"),
@@ -98,7 +130,7 @@ def test_admin_page_rejects_unverified_other_or_anonymous_users(monkeypatch):
     client = TestClient(Starlette(routes=[Route(a.PATH, a.activity_page)]))
     with (
         patch("ads_mcp.connections.session") as session,
-        patch.object(a, "ranking", return_value=[]) as ranking,
+        patch.object(a, "activity_summary", return_value=([], {})) as summary,
     ):
         for user, status in (
             (None, 401),
@@ -107,12 +139,13 @@ def test_admin_page_rejects_unverified_other_or_anonymous_users(monkeypatch):
         ):
             session.return_value = user
             assert client.get(a.PATH).status_code == status
-        ranking.assert_not_called()
+        summary.assert_not_called()
         for email in admins:
             session.return_value = {"email_verified": True, "email": email}
             result = client.get(a.PATH)
             assert (
                 result.status_code == 200
                 and "Inga verktygsanrop" in result.text
+                and "Anrop per produkt" in result.text
             )
             assert result.headers["cache-control"] == "no-store"

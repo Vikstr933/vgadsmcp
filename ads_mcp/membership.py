@@ -310,7 +310,7 @@ async def admin_page(request):
                 ),
                 (
                     "Användning",
-                    "Se antal anrop, aktiva dagar och senaste aktivitet.",
+                    "Se vilka produkter som används mest och följ den summerade användaraktiviteten.",
                     "/admin/aktivitet",
                 ),
             )

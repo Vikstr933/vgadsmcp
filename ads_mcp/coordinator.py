@@ -50,12 +50,10 @@ if _CLIENT_ID and _CLIENT_SECRET:
         provider_kwargs["client_storage"] = client_storage
 
     auth = GoogleProvider(**provider_kwargs)
-    from ads_mcp.activity import ActivityCounts
     from ads_mcp.membership import MemberGate
 
     mcp = FastMCP("Google Ads Server", auth=auth)
     mcp.add_middleware(MemberGate())
-    mcp.add_middleware(ActivityCounts())
 else:
     mcp = FastMCP("Google Ads Server")
 
@@ -89,7 +87,7 @@ def ensure_subscriptions_listen(server: FastMCP) -> bool:
 ensure_subscriptions_listen(mcp)
 
 
-def initialize_and_mount_tools(parent_mcp: FastMCP) -> None:
+def initialize_and_mount_tools(parent_mcp: FastMCP) -> dict[str, str]:
     """Loads the tools configuration and dynamically mounts the tools sub-servers."""
     from ads_mcp.config import ToolsConfig
     import importlib
@@ -113,6 +111,7 @@ def initialize_and_mount_tools(parent_mcp: FastMCP) -> None:
 
     config = ToolsConfig.load()
 
+    mounted_tools = {}
     for category, sub_mcp in sub_servers.items():
         if not config.is_namespace_enabled(category):
             continue
@@ -123,16 +122,24 @@ def initialize_and_mount_tools(parent_mcp: FastMCP) -> None:
             if key.startswith("tool:"):
                 tool_names.append(val.name)
 
+        namespace_prefix = config.get_namespace_prefix(category)
         for name in tool_names:
             if not config.is_tool_enabled(category, name):
                 sub_mcp.local_provider.remove_tool(name)
-
-        # Determine prefix/namespace
-        namespace_prefix = config.get_namespace_prefix(category)
+                continue
+            public_name = (
+                f"{namespace_prefix}_{name}" if namespace_prefix else name
+            )
+            mounted_tools[public_name] = category
 
         # Mount the sub-server
         parent_mcp.mount(sub_mcp, namespace=namespace_prefix or None)
 
+    return mounted_tools
 
-# Automatically initialize and mount tools upon import
-initialize_and_mount_tools(mcp)
+
+mounted_tools = initialize_and_mount_tools(mcp)
+if _CLIENT_ID and _CLIENT_SECRET:
+    from ads_mcp.activity import ActivityCounts
+
+    mcp.add_middleware(ActivityCounts(mounted_tools))
