@@ -594,6 +594,44 @@
       "_meta": {
         "fastmcp": {
           "tags": []
+        },
+        "ui": {
+          "resourceUri": "ui://viks/gtm-review.html"
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "Show an existing GTM proposal and its exact changes in Claude using its plan ID. For an explicit demo, omit the ID to show a fictional card. This is read-only. The owner approves real proposals via the link to Viks.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "plan_id": {
+            "anyOf": [
+              {
+                "pattern": "^[a-f0-9]{32}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "type": "object"
+      },
+      "name": "gtm_review_tracking_draft",
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Gtm Review Tracking Draft"
+    },
+    {
+      "_meta": {
+        "fastmcp": {
+          "tags": []
         }
       },
       "annotations": {
@@ -1818,6 +1856,99 @@
         "x-fastmcp-wrap-result": true
       },
       "title": "Search Search"
+    },
+    {
+      "_meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "Test Viks connections and optional target accounts using read calls only. GTM also checks whether the separate edit grant can read the specified web container. A successful read check never verifies a write. Use known numeric IDs; omit them for a connection-level check.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "google_customer_id": {
+            "anyOf": [
+              {
+                "pattern": "^(?:[0-9]{10}|[0-9]{3}-[0-9]{3}-[0-9]{4})$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "google_manager_id": {
+            "anyOf": [
+              {
+                "pattern": "^(?:[0-9]{10}|[0-9]{3}-[0-9]{3}-[0-9]{4})$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "gtm_account_id": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9]{1,24}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "gtm_container_id": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9]{1,24}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "linkedin_account_id": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9]{1,20}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "product": {
+            "default": "all",
+            "enum": [
+              "all",
+              "google_ads",
+              "gtm",
+              "linkedin"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "status_check_connections",
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Status Check Connections"
     },
     {
       "_meta": {

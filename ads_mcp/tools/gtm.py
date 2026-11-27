@@ -11,6 +11,7 @@ from pydantic import Field
 from requests.exceptions import RequestException
 
 from ads_mcp import google_grant, gtm_drafts, gtm_tag_edits
+from ads_mcp.gtm_review_card import REVIEW_URI
 from ads_mcp.write_policy import WriteBlocked, principal
 
 gtm_mcp = FastMCP("gtm")
@@ -211,3 +212,24 @@ def propose_tag_edit(
             principal(), account_id, container_id, tag_id, edit
         )
     )
+
+
+@gtm_mcp.tool(annotations=READ, app={"resourceUri": REVIEW_URI})
+def review_tracking_draft(
+    plan_id: Annotated[str, Field(pattern=r"^[a-f0-9]{32}$")] | None = None,
+) -> dict:
+    """Show an existing GTM proposal and its exact changes in Claude using its plan ID. For an explicit demo, omit the ID to show a fictional card. This is read-only. The owner approves real proposals via the link to Viks."""
+
+    def read_review():
+        owner = principal()
+        if plan_id:
+            return gtm_drafts.review(owner, plan_id)
+        return {
+            "status": "demo",
+            "container": {"publicId": "Exempelcontainer"},
+            "tag": {"tag_name": "Exempel: köp"},
+            "changes": {"paused": {"before": False, "after": True}},
+            "message": "Demokort med exempeldata. Inget förslag har skapats.",
+        }
+
+    return draft_call(read_review)

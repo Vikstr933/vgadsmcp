@@ -43,6 +43,20 @@
       "mimeType": "text/html",
       "name": "get_segments",
       "uri": "resource://segments"
+    },
+    {
+      "_meta": {
+        "fastmcp": {
+          "tags": []
+        },
+        "ui": {
+          "prefersBorder": true
+        }
+      },
+      "description": "Render the GTM proposal card.",
+      "mimeType": "text/html;profile=mcp-app",
+      "name": "tracking_review_card",
+      "uri": "ui://viks/gtm-review.html"
     }
   ]
 }

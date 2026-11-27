@@ -13,3 +13,4 @@ namespaces:
   # Uses a separate LinkedIn OAuth grant and account policy. No vendor relay.
   linkedin: true
   gtm: true
+  status: true

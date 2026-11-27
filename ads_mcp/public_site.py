@@ -126,7 +126,7 @@ async def homepage(request):
         '</div></section><section class="getting-started"><h2>Så kommer du igång</h2>'
         '<ol class="grid admin-grid"><li><strong>Logga in med Google</strong><p>Skapa eller öppna ditt kostnadsfria Viks-konto.</p></li>'
         "<li><strong>Anslut dina produkter</strong><p>Välj Google Ads, LinkedIn Ads eller Google Tag Manager från din översikt.</p></li>"
-        "<li><strong>Lägg till verktyget i Claude</strong><p>Kopiera adressen och följ guiden i din översikt.</p></li></ol>"
+        "<li><strong>Lägg till verktyget i Claude</strong><p>Kopiera adressen från din översikt. Skriv sedan Testa vADS i Claude för att kontrollera dina anslutningar.</p></li></ol>"
         "</section>",
         title="Annonser och spårning i Claude",
         user=user,

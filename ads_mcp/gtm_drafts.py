@@ -293,9 +293,28 @@ def save_plan(settings, owner, plan_id, change):
         "review_digest": digest(change),
     }
     GTMStore(settings).create(plan)
+    return review_data(settings, plan)
+
+
+def review(owner, plan_id):
+    settings = policy()
+    return review_data(
+        settings, checked_plan(GTMStore(settings), plan_id, owner)
+    )
+
+
+def review_data(settings, plan):
+    change = plan["change"]
+    plan_id = plan["id"]
+    status = plan["status"]
+    if (
+        status in ("pending_approval", "approved")
+        and plan["expires_at"] <= time.time()
+    ):
+        status = "expired"
     return {
         "plan_id": plan_id,
-        "status": plan["status"],
+        "status": status,
         "container": change["container"],
         "workspace": change["workspace_name"],
         **(
@@ -309,7 +328,11 @@ def save_plan(settings, owner, plan_id, change):
             else {}
         ),
         "changes": change["changes"],
-        "approval_url": f"{settings.base_url}/gtm/approvals/{plan_id}",
+        "approval_url": (
+            f"{settings.base_url}/gtm/approvals/{plan_id}"
+            if status == "pending_approval"
+            else None
+        ),
     }
 
 
