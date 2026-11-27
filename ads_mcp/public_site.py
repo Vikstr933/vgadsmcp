@@ -4,7 +4,7 @@ from base64 import b64decode
 
 from starlette.responses import Response
 
-from ads_mcp.product_icons import PRODUCTS, product_icon
+from ads_mcp.product_icons import PRODUCTS, product_icon_assets
 
 PORTAL_CSS = """
 :root { color-scheme: light; --ink:#192e28; --muted:#4b6257; --paper:#f5f7f2; --line:#d7e2d9; --accent:#17523d; font: 16px/1.55 system-ui,sans-serif; }
@@ -33,8 +33,9 @@ section { border:1px solid var(--line); border-radius:1rem; padding:1.4rem; marg
 .hero .btn + p { font-size:.875rem; margin-bottom:0; }
 .hero-channels { display:grid; gap:.625rem; }
 .hero-channels div { border:1px solid #527165; border-radius:.75rem; background:#224036; padding:.7rem; }
-.product-icon { display:inline-grid; place-items:center; flex:0 0 auto; width:2.65rem; height:2.65rem; border:1px solid #dce8df; border-radius:.7rem; background:#edf4ee; }
-.product-icon img { display:block; }
+.product-icon { display:inline-grid; place-items:center; flex:0 0 auto; width:2.65rem; height:2.65rem; border:1px solid #dce8df; border-radius:.7rem; background:#fff; }
+.product-icon img { display:block; object-fit:contain; }
+.channel-trademarks { display:block; color:var(--muted); font-size:.75rem; margin-top:.75rem; }
 .grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1rem; }
 .admin-grid,.channels-grid { grid-template-columns:repeat(3,minmax(0,1fr)); }
 .grid section { margin:0; }
@@ -100,10 +101,7 @@ if (copy && address && status) {
 """
 
 ASSETS = {
-    **{
-        f"/icons/{key}.png": (png, "image/png")
-        for key, (_, png) in PRODUCTS.items()
-    },
+    **product_icon_assets(),
     "/favicon.ico": (
         b64decode(
             "AAABAAEAICAAAAEAIAAkAQAAFgAAAIlQTkcNChoKAAAADUlIRFIAAAAgAAAAIAgGAAAAc3p69AAAAOtJREFUeJxjYEAD3Jpy9eJBtv9pgUFmo9sHB6wi/Pa0shgdg+waMMuxOoLelsMwzeOcqDQxUJbDQ2HUAfgku1fM+48MiDUUGYDMoCgESDGMHEcTdMDRy+dIMhAZgPRS7IDA2lwUQ0F8aqglKREihwI+XxGrjmQHoMcrNp+h+56Y9EK0A4iJW1LTCskOIJS6yfE9SQ7AZwm55QXJDsBlEbm+J9kB2BIaMQmUag5AT2wgNjlZjyIHoIcCJb4nywHooUCJ78l2AHq8k5P4KHIACKMDcs0Z3A2SkeGAAW+WD3jHZFB0zQa8czqQ3XMASHhJdv03xdkAAAAASUVORK5CYII="
@@ -147,8 +145,8 @@ async def homepage(request):
         + action
         + '</div><div class="hero-channels">'
         + "".join(
-            f"<div>{product_icon(key)}<strong>{title}</strong></div>"
-            for key, (title, _) in PRODUCTS.items()
+            f"<div><strong>{title}</strong></div>"
+            for title, _, _ in PRODUCTS.values()
         )
         + '</div></section><section class="getting-started"><h2>Så kommer du igång</h2>'
         '<ol class="grid admin-grid"><li><strong>Logga in med Google</strong><p>Skapa eller öppna ditt kostnadsfria Viks-konto.</p></li>'

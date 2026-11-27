@@ -501,7 +501,8 @@ async def channel_cards(user, request):
             f'<button aria-label="{linkedin_action} – LinkedIn Ads">{linkedin_action}</button></form>',
         )
         + gtm
-        + "</div>"
+        + '</div><small class="channel-trademarks">Google Ads och Google Tag Manager är varumärken som tillhör Google LLC. '
+        "LinkedIn är ett varumärke som tillhör LinkedIn Corporation och dess närstående bolag.</small>"
     )
 
 

@@ -152,8 +152,12 @@ def test_existing_callbacks_and_browser_binding():
         assert dashboard.text.count("<summary>Visa konton</summary>") == 2
         assert dashboard.text.count('class="channel-card__primary"') == 3
         assert all(
-            f"/icons/{key}.png" in dashboard.text
-            for key in ("google", "linkedin", "gtm")
+            f"/icons/{filename}" in dashboard.text
+            for filename in (
+                "google-ads.webp",
+                "linkedin-in.png",
+                "google-tag-manager.svg",
+            )
         )
         assert (
             client.post(

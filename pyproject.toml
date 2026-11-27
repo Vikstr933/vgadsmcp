@@ -50,3 +50,6 @@ issues = "https://github.com/googleads/google-ads-mcp/issues"
 [project.scripts]
 google-ads-mcp = "ads_mcp.server:run_server"
 google-ads-mcp-update-gaql = "ads_mcp.update_references:update_gaql_resource_file"
+
+[tool.setuptools.package-data]
+ads_mcp = ["brand_assets/*", "tools_config.yaml"]
