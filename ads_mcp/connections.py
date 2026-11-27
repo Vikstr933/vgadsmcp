@@ -7,6 +7,7 @@ import json
 import os
 import re
 import secrets
+from typing import NamedTuple
 from urllib.parse import urlencode
 
 import httpx
@@ -32,6 +33,7 @@ from ads_mcp.activity import PATH as ACTIVITY_PATH, activity_page, is_admin
 from ads_mcp.linkedin_auth import DASHBOARD_TTL, config, connection_store
 from ads_mcp.linkedin_client import LinkedInAPI
 from ads_mcp.mcp_header_interceptor import MCPHeaderInterceptor
+from ads_mcp.product_icons import PRODUCTS, product_icon
 from ads_mcp.write_approval import HEADERS
 from ads_mcp.write_policy import WriteBlocked, digest
 
@@ -326,6 +328,21 @@ def session(request):
         return None
 
 
+class ChannelDetails(NamedTuple):
+    label: str
+    tone: str
+    linked: bool
+    content: str = ""
+
+
+def accounts_disclosure(rows, *, following="", expanded=False):
+    listing = "<ul>" + "".join(f"<li>{row}</li>" for row in rows) + "</ul>"
+    return (
+        f'<details class="channel-accounts"{" open" if expanded else ""}>'
+        f"<summary>Visa konton</summary>{listing}{following}</details>"
+    )
+
+
 def linkedin_details(owner, cursor):
     if len(cursor) > 4096:
         raise WriteBlocked("Invalid cursor")
@@ -334,10 +351,10 @@ def linkedin_details(owner, cursor):
         grant = connection_store().grant(owner)
     except WriteBlocked as exc:
         if "Connect LinkedIn first" in str(exc):
-            return "Ännu inte anslutet."
+            return ChannelDetails("Ej anslutet", "neutral", False)
         if "expired" in str(exc):
-            return "Inloggningen har gått ut. Anslut LinkedIn igen."
-        return "Anslutningens status kunde inte kontrolleras."
+            return ChannelDetails("Åtkomsten har gått ut", "warning", True)
+        return ChannelDetails("Status kunde inte hämtas", "warning", False)
     try:
         result = LinkedInAPI(grant["access_token"]).accounts(
             cursor or None, 100
@@ -348,21 +365,29 @@ def linkedin_details(owner, cursor):
             + html.escape(str(item["id"]))
             for item in result["elements"]
         ]
-        listing = (
-            "<ul>" + "".join("<li>" + row + "</li>" for row in rows) + "</ul>"
-            if rows
-            else "Inga annonskonton hittades."
-        )
         token = result.get("metadata", {}).get("nextPageToken")
-        if token:
-            listing += (
-                '<a href="?'
-                + html.escape(urlencode({"sida": token}), quote=True)
-                + '">Nästa sida</a>'
+        following = (
+            '<a href="?'
+            + html.escape(urlencode({"sida": token}), quote=True)
+            + '#linkedin-konton">Nästa sida</a>'
+            if token
+            else ""
+        )
+        listing = (
+            accounts_disclosure(
+                rows, following=following, expanded=bool(cursor)
             )
-        return "Anslutet. " + listing
+            if rows or following
+            else "<p>Inga annonskonton hittades.</p>"
+        )
+        return ChannelDetails("Anslutet", "good", True, listing)
     except Exception:
-        return "Inloggning sparad. LinkedIn kunde inte returnera annonskontona just nu."
+        return ChannelDetails(
+            "Åtkomst sparad",
+            "warning",
+            True,
+            "<p>Kontolistan kunde inte hämtas.</p>",
+        )
 
 
 def linkedin_link(owner):
@@ -415,27 +440,43 @@ async def google_details(user):
                 google_grant.credentials, user["owner"]
             )
         except WriteBlocked:
-            return "Ännu inte anslutet.", False
+            return ChannelDetails("Ej anslutet", "neutral", False)
         except Exception:
-            return "Anslutningens status kunde inte kontrolleras.", False
+            return ChannelDetails("Status kunde inte hämtas", "warning", False)
         try:
             ids = await run_in_threadpool(google_accounts, credentials)
         except Exception:
-            return "Anslutning sparad. Kontolistan kunde inte hämtas.", True
-    if not ids:
-        return "Anslutet. Inga direkt åtkomliga annonskonton hittades.", True
+            return ChannelDetails(
+                "Åtkomst sparad",
+                "warning",
+                True,
+                "<p>Kontolistan kunde inte hämtas.</p>",
+            )
+    listing = (
+        accounts_disclosure([html.escape(i) for i in ids])
+        if ids
+        else "<p>Inga direkt åtkomliga annonskonton hittades.</p>"
+    )
+    return ChannelDetails("Anslutet", "good", True, listing)
+
+
+def channel_card(key, info, primary, secondary=""):
+    title = PRODUCTS[key][0]
     return (
-        "Anslutet. <details><summary>Visa annons- och förvaltarkonton</summary><ul>"
-        + "".join("<li>" + html.escape(i) + "</li>" for i in ids)
-        + "</ul></details>",
-        True,
+        f'<section class="channel-card" id="{key}-konton" aria-labelledby="{key}-product">'
+        '<div class="channel-card__heading">'
+        + product_icon(key)
+        + f'<h2 id="{key}-product">{title}</h2></div>'
+        f'<div class="channel-card__body"><p class="channel-state channel-state--{info.tone}">{info.label}</p>{info.content}</div>'
+        f'<div class="channel-card__primary">{primary}</div>'
+        f'<div class="channel-card__secondary">{secondary}</div></section>'
     )
 
 
 async def channel_cards(user, request):
     import asyncio
 
-    google_result, linkedin, gtm = await asyncio.gather(
+    google, linkedin, gtm = await asyncio.gather(
         google_details(user),
         run_in_threadpool(
             linkedin_details,
@@ -444,22 +485,21 @@ async def channel_cards(user, request):
         ),
         run_in_threadpool(gtm_card, user["owner"]),
     )
-    google, connected = google_result
-    google_action = (
-        "Förnya Google Ads-åtkomst" if connected else "Anslut Google Ads"
-    )
-    linkedin_action = (
-        "Anslut LinkedIn igen"
-        if linkedin.startswith(
-            ("Anslutet.", "Inloggning sparad.", "Inloggningen har gått ut.")
-        )
-        else "Anslut LinkedIn"
-    )
+    google_action = "Förnya åtkomst" if google.linked else "Anslut Google Ads"
+    linkedin_action = "Förnya åtkomst" if linkedin.linked else "Anslut LinkedIn"
     return (
-        '<div class="grid channels-grid"><section><div class="icon google" aria-hidden="true">G</div><h2>Google Ads</h2>'
-        f'<div class="status">{google}</div><a class="btn" href="/anslutningar/google?kanal=google&amp;till=/mitt-konto">{google_action}</a></section>'
-        '<section><div class="icon linkedin" aria-hidden="true">in</div><h2>LinkedIn Ads</h2>'
-        f'<div class="status">{linkedin}</div><form method="post" action="/anslutningar"><button>{linkedin_action}</button></form></section>'
+        '<div class="grid channels-grid">'
+        + channel_card(
+            "google",
+            google,
+            f'<a class="btn" href="/anslutningar/google?kanal=google&amp;till=/mitt-konto" aria-label="{google_action} – Google Ads">{google_action}</a>',
+        )
+        + channel_card(
+            "linkedin",
+            linkedin,
+            '<form method="post" action="/anslutningar">'
+            f'<button aria-label="{linkedin_action} – LinkedIn Ads">{linkedin_action}</button></form>',
+        )
         + gtm
         + "</div>"
     )
@@ -470,22 +510,28 @@ def gtm_card(owner):
         linked = (
             google_grant.grant_ref(owner, google_grant.GTM_READ).get().exists
         )
-        status = "Läsåtkomst sparad." if linked else "Ännu inte anslutet."
         edit_linked = (
             google_grant.grant_ref(owner, google_grant.GTM_EDIT).get().exists
         )
     except Exception:
+        status = ChannelDetails("Status kunde inte hämtas", "warning", False)
         linked = edit_linked = False
-        status = "Anslutningens status kunde inte kontrolleras."
+    else:
+        status = ChannelDetails(
+            "Läsåtkomst sparad" if linked else "Ej anslutet",
+            "good" if linked else "neutral",
+            linked,
+            "<p>Utkaståtkomst sparad.</p>" if edit_linked else "",
+        )
     action = "Förnya läsåtkomst" if linked else "Anslut GTM"
     edit_action = (
         "Förnya utkaståtkomst" if edit_linked else "Aktivera GTM-utkast"
     )
-    return (
-        '<section><div class="icon gtm" aria-hidden="true">GTM</div><h2>Google Tag Manager</h2>'
-        f'<p class="status">{status} Läs taggar, triggers och variabler eller granska ändringar i en separat arbetsyta.</p>'
-        f'<a class="btn" href="/anslutningar/google?kanal=gtm">{action}</a>'
-        f'<p><a href="/anslutningar/google?kanal=gtm_edit">{edit_action}</a></p></section>'
+    return channel_card(
+        "gtm",
+        status,
+        f'<a class="btn" href="/anslutningar/google?kanal=gtm">{action}</a>',
+        f'<a href="/anslutningar/google?kanal=gtm_edit">{edit_action}</a>',
     )
 
 

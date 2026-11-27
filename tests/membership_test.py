@@ -205,10 +205,16 @@ def test_portal_navigation_and_channel_setup_are_role_aware():
             hub, "config", return_value={"base_url": "https://testserver"}
         ),
         patch.object(hub, "connection_store") as storage,
-        patch.object(hub, "google_details", return_value=("Anslutet.", True)),
+        patch.object(
+            hub,
+            "google_details",
+            return_value=hub.ChannelDetails("Anslutet", "good", True),
+        ),
         patch.object(hub.google_grant, "grant_ref") as grant_ref,
         patch.object(
-            hub, "linkedin_details", return_value="Ännu inte anslutet."
+            hub,
+            "linkedin_details",
+            return_value=hub.ChannelDetails("Ej anslutet", "neutral", False),
         ),
         patch.object(m, "is_admin", return_value=False) as admin,
         patch.object(hub, "is_admin", return_value=False) as nav_admin,

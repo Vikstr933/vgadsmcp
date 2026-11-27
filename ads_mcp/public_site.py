@@ -4,6 +4,8 @@ from base64 import b64decode
 
 from starlette.responses import Response
 
+from ads_mcp.product_icons import PRODUCTS, product_icon
+
 PORTAL_CSS = """
 :root { color-scheme: light; --ink:#192e28; --muted:#4b6257; --paper:#f5f7f2; --line:#d7e2d9; --accent:#17523d; font: 16px/1.55 system-ui,sans-serif; }
 * { box-sizing:border-box; }
@@ -13,8 +15,7 @@ header { background:#fff; border-bottom:1px solid var(--line); }
 .top, nav, footer, .brand, .identity, .copy, .hero-channels div { display:flex; align-items:center; gap:0.85rem; flex-wrap:wrap; }
 .top { justify-content:space-between; min-height:4.7rem; padding-block:.7rem; }
 .brand { font-weight:750; text-decoration:none; color:var(--ink); }
-.mark, .icon { display:inline-grid; place-items:center; width:2.2rem; height:2.2rem; border-radius:.6rem; font-weight:800; }
-.mark { color:white; background:var(--accent); }
+.mark { display:inline-grid; place-items:center; width:2.2rem; height:2.2rem; border-radius:.6rem; font-weight:800; color:white; background:var(--accent); }
 a { color:var(--accent); text-underline-offset:.18em; }
 a:focus-visible, button:focus-visible, input:focus-visible, summary:focus-visible { outline:3px solid #287b63; outline-offset:3px; }
 .skip { position:absolute; top:-5rem; }
@@ -32,13 +33,35 @@ section { border:1px solid var(--line); border-radius:1rem; padding:1.4rem; marg
 .hero .btn + p { font-size:.875rem; margin-bottom:0; }
 .hero-channels { display:grid; gap:.625rem; }
 .hero-channels div { border:1px solid #527165; border-radius:.75rem; background:#224036; padding:.7rem; }
-.google { background:#e9f1ff; color:#1e51a6; }
-.linkedin { background:#dceffc; color:#004980; }
-.gtm { background:#f3e8fc; color:#582a7b; font-size:.72rem; }
+.product-icon { display:inline-grid; place-items:center; flex:0 0 auto; width:2.65rem; height:2.65rem; border:1px solid #dce8df; border-radius:.7rem; background:#edf4ee; }
+.product-icon img { display:block; }
 .grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1rem; }
 .admin-grid,.channels-grid { grid-template-columns:repeat(3,minmax(0,1fr)); }
 .grid section { margin:0; }
-.grid .icon { margin-bottom:.8rem; }
+.channel-card { display:flex; flex-direction:column; gap:.9rem; min-width:0; padding:1.25rem; }
+.channel-card__heading { display:grid; gap:.75rem; justify-items:start; }
+.channel-card__heading h2 { margin:0; font-size:1.2rem; }
+.channel-card__body { min-width:0; color:var(--muted); font-size:.92rem; }
+.channel-card__body p { margin:0; }
+.channel-card__body > :not(:first-child) { margin-top:.65rem; }
+.channel-state { display:inline-block; border-radius:999px; padding:.2rem .65rem; background:#eef1ee; color:#3e5149; font-size:.82rem; font-weight:650; }
+.channel-state--good { background:#e6f4e9; color:#24543d; }
+.channel-state--warning { background:#f9eee0; color:#754524; }
+.channel-accounts summary { margin-top:0; }
+.channel-accounts ul { padding-inline-start:1.15rem; overflow-wrap:anywhere; }
+.channel-card__primary { margin-top:auto; }
+.channel-card__primary :is(.btn,button) { display:block; width:100%; min-height:2.8rem; text-align:center; }
+.channel-card__secondary { min-height:1.4rem; font-size:.9rem; text-align:center; }
+@supports (grid-template-rows: subgrid) {
+  @media (min-width: 841px) {
+    .channel-card { display:grid; grid-row:span 4; grid-template-rows:subgrid; }
+    .channel-card__primary { margin-top:0; }
+  }
+}
+@media (max-width: 840px) {
+  .channels-grid { grid-template-columns:1fr; }
+  .channel-card__secondary:empty { display:none; }
+}
 .getting-started { background:transparent; border:0; padding:1.5rem 0 0; }
 .getting-started ol { padding-left:1.6rem; column-gap:3rem; }
 .getting-started li::marker { font-weight:700; color:var(--accent); }
@@ -47,7 +70,6 @@ section { border:1px solid var(--line); border-radius:1rem; padding:1.4rem; marg
 .subtle { background:transparent; color:var(--accent); padding:.25rem .4rem; }
 [hidden] { display:none !important; }
 .badge { border-radius:2rem; background:#e6efe4; color:#234539; padding:.2rem .65rem; font-size:.875rem; }
-.status { margin-block:.6rem 1rem; color:var(--muted); }
 summary { cursor:pointer; margin-top:.4rem; color:var(--accent); }
 input[readonly] { flex:1 1 17rem; min-width:0; max-width:100%; padding:.65rem; border:1px solid #9dae9f; border-radius:.45rem; color:var(--ink); font:inherit; }
 #copy-status:not(:empty) { margin-top:.5rem; }
@@ -78,6 +100,10 @@ if (copy && address && status) {
 """
 
 ASSETS = {
+    **{
+        f"/icons/{key}.png": (png, "image/png")
+        for key, (_, png) in PRODUCTS.items()
+    },
     "/favicon.ico": (
         b64decode(
             "AAABAAEAICAAAAEAIAAkAQAAFgAAAIlQTkcNChoKAAAADUlIRFIAAAAgAAAAIAgGAAAAc3p69AAAAOtJREFUeJxjYEAD3Jpy9eJBtv9pgUFmo9sHB6wi/Pa0shgdg+waMMuxOoLelsMwzeOcqDQxUJbDQ2HUAfgku1fM+48MiDUUGYDMoCgESDGMHEcTdMDRy+dIMhAZgPRS7IDA2lwUQ0F8aqglKREihwI+XxGrjmQHoMcrNp+h+56Y9EK0A4iJW1LTCskOIJS6yfE9SQ7AZwm55QXJDsBlEbm+J9kB2BIaMQmUag5AT2wgNjlZjyIHoIcCJb4nywHooUCJ78l2AHq8k5P4KHIACKMDcs0Z3A2SkeGAAW+WD3jHZFB0zQa8czqQ3XMASHhJdv03xdkAAAAASUVORK5CYII="
@@ -120,10 +146,11 @@ async def homepage(request):
         "<p>Analysera kampanjer i Google Ads och LinkedIn Ads. Felsök spårningen och förbered taggändringar i Google Tag Manager.</p>"
         + action
         + '</div><div class="hero-channels">'
-        '<div><span class="icon google" aria-hidden="true">G</span><strong>Google Ads</strong></div>'
-        '<div><span class="icon linkedin" aria-hidden="true">in</span><strong>LinkedIn Ads</strong></div>'
-        '<div><span class="icon gtm" aria-hidden="true">GTM</span><strong>Google Tag Manager</strong></div>'
-        '</div></section><section class="getting-started"><h2>Så kommer du igång</h2>'
+        + "".join(
+            f"<div>{product_icon(key)}<strong>{title}</strong></div>"
+            for key, (title, _) in PRODUCTS.items()
+        )
+        + '</div></section><section class="getting-started"><h2>Så kommer du igång</h2>'
         '<ol class="grid admin-grid"><li><strong>Logga in med Google</strong><p>Skapa eller öppna ditt kostnadsfria Viks-konto.</p></li>'
         "<li><strong>Anslut dina produkter</strong><p>Välj Google Ads, LinkedIn Ads eller Google Tag Manager från din översikt.</p></li>"
         "<li><strong>Lägg till verktyget i Claude</strong><p>Kopiera adressen från din översikt. Skriv sedan Testa vADS i Claude för att kontrollera dina anslutningar.</p></li></ol>"

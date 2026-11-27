@@ -51,7 +51,14 @@ def test_existing_callbacks_and_browser_binding():
         patch.object(hub.google_grant, "save") as save,
         patch.object(hub, "google_accounts", return_value=["123"]),
         patch.object(
-            hub, "linkedin_details", return_value="LinkedIn-konto 456"
+            hub,
+            "linkedin_details",
+            return_value=hub.ChannelDetails(
+                "Anslutet",
+                "good",
+                True,
+                hub.accounts_disclosure(["LinkedIn-konto 456"]),
+            ),
         ),
         patch.object(hub.httpx, "AsyncClient") as transport,
     ):
@@ -142,6 +149,12 @@ def test_existing_callbacks_and_browser_binding():
         assert save.call_args.args[-1] == hub.google_grant.GTM_EDIT
         dashboard = client.get(hub.HOME)
         assert all(x in dashboard.text for x in ("123", "456", "v@example.com"))
+        assert dashboard.text.count("<summary>Visa konton</summary>") == 2
+        assert dashboard.text.count('class="channel-card__primary"') == 3
+        assert all(
+            f"/icons/{key}.png" in dashboard.text
+            for key in ("google", "linkedin", "gtm")
+        )
         assert (
             client.post(
                 hub.HOME, headers={"origin": "https://example.com"}
