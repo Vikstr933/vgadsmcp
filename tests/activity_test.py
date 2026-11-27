@@ -117,7 +117,9 @@ def test_daily_summary_and_one_through_nine_calls():
             "google_ads": 1,
             "gtm": 3,
             "linkedin": 0,
+            "connection_check": 0,
             "other": 0,
+            "unclassified": 0,
         }
         assert len(client.get_all.call_args.args[0]) == a.DAYS
         assert c.document.call_args.args[0] == f"2026-11-25_{uid}"
@@ -184,3 +186,17 @@ def test_admin_page_rejects_unverified_other_or_anonymous_users(monkeypatch):
         assert selected.headers["cache-control"] == "no-store"
         assert summary.call_args.args[1] == "a" * 64
         assert client.get(a.PATH + "?anvandare=invalid").status_code == 404
+
+
+def test_all_registered_tools_have_a_usage_category():
+    from ads_mcp.coordinator import mounted_tools
+
+    categories = a.ActivityCounts(mounted_tools).tool_products
+    assert categories["status_check_connections"] == "connection_check"
+    assert "unclassified" not in categories.values()
+    markup = a.product_summary_html(
+        {"connection_check": 2, "other": 3, "unclassified": 0}, 5
+    )
+    assert "Anslutningstest (Testa vADS)" in markup
+    assert "Äldre ospecificerade anrop" in markup
+    assert "Oklassificerade anrop" not in markup

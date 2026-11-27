@@ -30,7 +30,9 @@ PRODUCT_NAMES = {
     "google_ads": "Google Ads",
     "gtm": "Google Tag Manager",
     "linkedin": "LinkedIn Ads",
-    "other": "Övriga verktyg",
+    "connection_check": "Anslutningstest (Testa vADS)",
+    "other": "Äldre ospecificerade anrop",
+    "unclassified": "Oklassificerade anrop",
 }
 PRODUCT_BY_CATEGORY = {
     "customers": "google_ads",
@@ -40,6 +42,7 @@ PRODUCT_BY_CATEGORY = {
     "writes": "google_ads",
     "gtm": "gtm",
     "linkedin": "linkedin",
+    "status": "connection_check",
 }
 
 
@@ -76,7 +79,11 @@ def count_call(subject, email, day, product):
     from google.cloud import firestore
 
     _, collection, cipher = storage()
-    product = product if product in PRODUCT_NAMES else "other"
+    product = (
+        product
+        if product in PRODUCT_NAMES and product != "other"
+        else "unclassified"
+    )
     user = digest({"provider": "google", "subject": subject})
     record = {
         "day": day.isoformat(),
@@ -97,7 +104,7 @@ def count_call(subject, email, day, product):
 class ActivityCounts(Middleware):
     def __init__(self, mounted_tools):
         self.tool_products = {
-            name: PRODUCT_BY_CATEGORY.get(category, "other")
+            name: PRODUCT_BY_CATEGORY.get(category, "unclassified")
             for name, category in mounted_tools.items()
         }
 
@@ -117,7 +124,9 @@ class ActivityCounts(Middleware):
                     subject,
                     email,
                     datetime.now(STOCKHOLM).date(),
-                    self.tool_products.get(context.message.name, "other"),
+                    self.tool_products.get(
+                        context.message.name, "unclassified"
+                    ),
                 )
         except Exception:
             # A statistics outage must not interrupt tool execution or leak call details.
@@ -175,7 +184,7 @@ def activity_summary(today, member_id=None):
         item["last"] = max(day, item["last"])
         for product, count in row.get("products", {}).items():
             item["products"][
-                product if product in PRODUCT_NAMES else "other"
+                product if product in PRODUCT_NAMES else "unclassified"
             ] += count
         if row.get("label") and day >= item["label_day"]:
             try:
@@ -198,7 +207,7 @@ def product_summary_html(product_calls, total_calls):
         for key, count in sorted(
             product_calls.items(), key=lambda item: -item[1]
         )
-        if key != "other" or count
+        if key in ("google_ads", "gtm", "linkedin") or count
     )
     previous = total_calls - recorded
     note = (
@@ -206,8 +215,12 @@ def product_summary_html(product_calls, total_calls):
         if previous > 0
         else ""
     )
+    if product_calls.get("connection_check"):
+        note += "<p>Anslutningstest räknas en gång, även när det kontrollerar flera produkter.</p>"
+    if product_calls.get("other"):
+        note += "<p>Äldre ospecificerade anrop sparades innan anslutningstestet fick en egen kategori. De går inte att identifiera i efterhand.</p>"
     return (
-        '<div class="table-wrap"><table><thead><tr><th>Produkt</th><th>Anrop</th>'
+        '<div class="table-wrap"><table><thead><tr><th>Produkt eller funktion</th><th>Anrop</th>'
         "<th>Andel</th></tr></thead><tbody>"
         + rows
         + "</tbody></table></div>"
