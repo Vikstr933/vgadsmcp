@@ -1,9 +1,10 @@
-"""Daily user totals and service-wide product totals for MCP activity."""
+"""Daily per-user call totals with a product-only breakdown."""
 
 import base64
 import hashlib
 import html
 import logging
+import re
 from datetime import datetime, time, timedelta
 from functools import lru_cache
 from zoneinfo import ZoneInfo
@@ -74,35 +75,23 @@ def storage():
 def count_call(subject, email, day, product):
     from google.cloud import firestore
 
-    client, collection, cipher = storage()
+    _, collection, cipher = storage()
+    product = product if product in PRODUCT_NAMES else "other"
     user = digest({"provider": "google", "subject": subject})
     record = {
         "day": day.isoformat(),
         "user": user,
         "calls": firestore.Increment(1),
+        "products": {product: firestore.Increment(1)},
         "delete_after": datetime.combine(
             day + timedelta(days=DAYS), time.min, tzinfo=STOCKHOLM
         ),
     }
     if email:
         record["label"] = cipher.encrypt(email.encode()).decode()
-    batch = client.batch()
-    batch.set(
-        collection.document(f"{day.isoformat()}_{user}"), record, merge=True
+    collection.document(f"{day.isoformat()}_{user}").set(
+        record, merge=True, retry=None, timeout=2
     )
-    # Product totals share the reporting window and TTL, but have no member identifier.
-    product = product if product in PRODUCT_NAMES else "other"
-    batch.set(
-        collection.document(f"product_{day.isoformat()}_{product}"),
-        {
-            "day": record["day"],
-            "product": product,
-            "calls": firestore.Increment(1),
-            "delete_after": record["delete_after"],
-        },
-        merge=True,
-    )
-    batch.commit(retry=None, timeout=2)
 
 
 class ActivityCounts(Middleware):
@@ -136,56 +125,73 @@ class ActivityCounts(Middleware):
         return await call_next(context)
 
 
-def activity_summary(today):
+def activity_summary(today, member_id=None):
     from google.cloud.firestore_v1.base_query import FieldFilter
 
-    _, collection, cipher = storage()
+    client, collection, cipher = storage()
     cutoff = today - timedelta(days=DAYS - 1)
-    docs = (
-        collection.where(filter=FieldFilter("day", ">=", cutoff.isoformat()))
-        .where(filter=FieldFilter("day", "<=", today.isoformat()))
-        .stream()
-    )
+    if member_id:
+        # Daily document IDs are deterministic. Read only the chosen member's
+        # documents and avoid a cross-user query or a new Firestore index.
+        refs = [
+            collection.document(
+                f"{cutoff + timedelta(days=offset)}_{member_id}"
+            )
+            for offset in range(DAYS)
+        ]
+        docs = client.get_all(refs)
+    else:
+        docs = (
+            collection.where(
+                filter=FieldFilter("day", ">=", cutoff.isoformat())
+            )
+            .where(filter=FieldFilter("day", "<=", today.isoformat()))
+            .select(["day", "user", "calls", "label"])
+            .stream()
+        )
+
     users = {}
-    product_calls = dict.fromkeys(PRODUCT_NAMES, 0)
     for doc in docs:
-        row = doc.to_dict()
-        if "product" in row:
-            key = row["product"]
-            product_calls[key if key in PRODUCT_NAMES else "other"] += row[
-                "calls"
-            ]
+        row = doc.to_dict() or {}
+        uid = row.get("user")
+        # Previous revisions also wrote product totals shared by all members.
+        if not uid or (member_id and uid != member_id):
             continue
-        uid, day = row["user"], row["day"]
+        day = row["day"]
         item = users.setdefault(
             uid,
             {
+                "id": uid,
                 "name": "Användare " + uid[:12],
                 "calls": 0,
                 "days": 0,
                 "last": day,
                 "label_day": "",
+                "products": dict.fromkeys(PRODUCT_NAMES, 0),
             },
         )
         item["calls"] += row["calls"]
         item["days"] += 1
         item["last"] = max(day, item["last"])
+        for product, count in row.get("products", {}).items():
+            item["products"][
+                product if product in PRODUCT_NAMES else "other"
+            ] += count
         if row.get("label") and day >= item["label_day"]:
             try:
                 item["name"] = cipher.decrypt(row["label"].encode()).decode()
             except InvalidToken:
                 continue
             item["label_day"] = day
-    users_by_activity = sorted(
+    return sorted(
         users.values(), key=lambda r: (-r["days"], -r["calls"], r["name"])
     )
-    return users_by_activity, product_calls
 
 
 def product_summary_html(product_calls, total_calls):
     recorded = sum(product_calls.values())
     if not recorded:
-        return "<p>Produktstatistiken visas när nya verktygsanrop har registrerats.</p>"
+        return "<p>Produktstatistik visas från användarens första anrop efter uppdateringen. Tidigare anrop ingår i totalen ovan.</p>"
     rows = "".join(
         f'<tr><th scope="row">{PRODUCT_NAMES[key]}</th><td>{count}</td>'
         f'<td><meter min="0" max="{recorded}" value="{count}" aria-label="Andel för {PRODUCT_NAMES[key]}"></meter> {count / recorded:.0%}</td></tr>'
@@ -196,7 +202,7 @@ def product_summary_html(product_calls, total_calls):
     )
     previous = total_calls - recorded
     note = (
-        f"<p>{previous} tidigare anrop ingår bara i användarstatistiken.</p>"
+        f"<p>{previous} tidigare anrop ingår i totalen ovan. Andelarna avser anrop med produktuppdelning.</p>"
         if previous > 0
         else ""
     )
@@ -228,12 +234,39 @@ async def activity_page(request):
                 title="Användaraktivitet",
             )
         today = datetime.now(STOCKHOLM).date()
-        items, product_calls = await run_in_threadpool(activity_summary, today)
-        products = product_summary_html(
-            product_calls, sum(r["calls"] for r in items)
-        )
+        member_id = request.query_params.get("anvandare")
+        period = f"<p>{today-timedelta(days=DAYS-1)} – {today} · svensk tid</p>"
+        if member_id is not None:
+            if not re.fullmatch(r"[a-f0-9]{64}", member_id):
+                return page(
+                    "Användaren hittades inte.",
+                    404,
+                    title="Användaraktivitet",
+                    user=user,
+                )
+            items = await run_in_threadpool(activity_summary, today, member_id)
+            back = f'<p><a href="{PATH}">Till alla användare</a></p>'
+            if not items:
+                return page(
+                    back
+                    + "<p>Ingen aktivitet för användaren under perioden.</p>",
+                    404,
+                    title="Användaraktivitet",
+                    user=user,
+                )
+            member = items[0]
+            products = product_summary_html(member["products"], member["calls"])
+            return page(
+                back
+                + period
+                + f'<p>{member["calls"]} anrop totalt · {member["days"]} aktiva dagar · Senast aktiv {member["last"]}</p>'
+                + f"<section><h2>Anrop per produkt</h2>{products}</section>",
+                title=member["name"],
+                user=user,
+            )
+        items = await run_in_threadpool(activity_summary, today)
         rows = "".join(
-            f'<tr><td>{html.escape(r["name"])}</td><td>{r["days"]}</td><td>{r["calls"]}</td><td>{r["last"]}</td></tr>'
+            f'<tr><td><a href="{PATH}?anvandare={r["id"]}">{html.escape(r["name"])}</a></td><td>{r["days"]}</td><td>{r["calls"]}</td><td>{r["last"]}</td></tr>'
             for r in items
         )
         table = (
@@ -247,10 +280,8 @@ async def activity_page(request):
             else "<p>Inga verktygsanrop har registrerats för perioden.</p>"
         )
         return page(
-            f"<p>{today-timedelta(days=DAYS-1)} – {today} · svensk tid</p>"
-            f"<section><h2>Anrop per produkt</h2>{products}</section>"
-            f"<section><h2>Anrop per användare</h2>{table}</section>"
-            "<p>Varje användare visas från sitt första verktygsanrop. Listan sorteras efter aktiva dagar och därefter antal anrop. Även anrop som ger fel räknas.</p>"
+            period + f"<section><h2>Anrop per användare</h2>{table}</section>"
+            "<p>Välj ett Google-konto för att se produktanvändningen. Varje användare visas från sitt första verktygsanrop. Listan sorteras efter aktiva dagar och därefter antal anrop. Även anrop som ger fel räknas.</p>"
             '<p><a href="/admin">Till adminöversikten</a></p>',
             title="Användaraktivitet",
             user=user,

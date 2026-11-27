@@ -310,7 +310,7 @@ async def admin_page(request):
                 ),
                 (
                     "Användning",
-                    "Se vilka produkter som används mest och följ den summerade användaraktiviteten.",
+                    "Se användarnas totala aktivitet och produktuppdelning.",
                     "/admin/aktivitet",
                 ),
             )
