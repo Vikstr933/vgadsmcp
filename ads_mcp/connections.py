@@ -483,7 +483,7 @@ def gtm_card(owner):
     )
     return (
         '<section><div class="icon gtm" aria-hidden="true">GTM</div><h2>Google Tag Manager</h2>'
-        f'<p class="status">{status} Läs taggar, triggers och variabler i Claude.</p>'
+        f'<p class="status">{status} Läs taggar, triggers och variabler eller granska ändringar i en separat arbetsyta.</p>'
         f'<a class="btn" href="/anslutningar/google?kanal=gtm">{action}</a>'
         f'<p><a href="/anslutningar/google?kanal=gtm_edit">{edit_action}</a></p></section>'
     )

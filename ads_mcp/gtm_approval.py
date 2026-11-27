@@ -54,13 +54,28 @@ async def approval_page(request):
         target = html.escape(
             f'{change["container"]["name"]} · {change["container"]["publicId"]} · {change["container_path"]}'
         )
+        edit = change.get("edit")
+        tag_details = (
+            "<p><strong>Befintlig tagg</strong> "
+            + html.escape(
+                f'{edit["tag_name"]} · ID {edit["tag_id"]} · version {edit["version_id"]}'
+            )
+            + "</p>"
+            if edit
+            else ""
+        )
+        summary = (
+            "Granskade fält före och efter"
+            if edit
+            else "Exakta taggar, triggers och variabler"
+        )
         contents = html.escape(
             json.dumps(change["changes"], ensure_ascii=False, indent=2)
         )
         return page(
-            f'<section><p><strong>Container</strong> {target}</p><p><strong>Ny arbetsyta</strong> {html.escape(change["workspace_name"])}</p>'
+            f'<section><p><strong>Container</strong> {target}</p><p><strong>Ny arbetsyta</strong> {html.escape(change["workspace_name"])}</p>{tag_details}'
             "<p>Förslaget skapar en ny arbetsyta för test i Tag Assistant. Publicering sker separat i Google Tag Manager.</p>"
-            "<details open><summary>Exakta taggar, triggers och variabler</summary>"
+            f"<details open><summary>{summary}</summary>"
             f'<pre class="draft-payload">{contents}</pre></details>'
             f'<form method="post"><input type="hidden" name="csrf" value="{csrf}">'
             '<label>Skriv Godkänn <input name="confirm" required autocomplete="off"></label> '

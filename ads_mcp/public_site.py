@@ -117,7 +117,7 @@ async def homepage(request):
     )
     return page(
         '<section class="hero"><div><h1>Annonser och spårning i Claude</h1>'
-        "<p>Analysera kampanjer i Google Ads och LinkedIn Ads, och felsök spårningen i Google Tag Manager.</p>"
+        "<p>Analysera kampanjer i Google Ads och LinkedIn Ads. Felsök spårningen och förbered taggändringar i Google Tag Manager.</p>"
         + action
         + '</div><div class="hero-channels">'
         '<div><span class="icon google" aria-hidden="true">G</span><strong>Google Ads</strong></div>'

@@ -73,6 +73,46 @@
       "annotations": {
         "readOnlyHint": true
       },
+      "description": "Inspect an existing published tag, its editable fields and available user-defined triggers. The numeric tag_id comes from live_version.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "account_id": {
+            "pattern": "^[0-9]{1,24}$",
+            "type": "string"
+          },
+          "container_id": {
+            "pattern": "^[0-9]{1,24}$",
+            "type": "string"
+          },
+          "tag_id": {
+            "pattern": "^[0-9]{1,24}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "account_id",
+          "container_id",
+          "tag_id"
+        ],
+        "type": "object"
+      },
+      "name": "gtm_inspect_published_tag",
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Gtm Inspect Published Tag"
+    },
+    {
+      "_meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true
+      },
       "description": "List GTM accounts accessible to the connected Google user. Pass nextPageToken to continue.",
       "inputSchema": {
         "additionalProperties": false,
@@ -283,6 +323,135 @@
         "type": "object"
       },
       "title": "Gtm Live Version"
+    },
+    {
+      "_meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      },
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": false
+      },
+      "description": "Preview edits to a published tag in a new GTM web workspace. Use inspect_published_tag first for its fields and trigger IDs. Returns a before/after diff and browser approval URL. After approval, use apply_tracking_draft with the same plan ID. No production publishing.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "account_id": {
+            "pattern": "^[0-9]{1,24}$",
+            "type": "string"
+          },
+          "container_id": {
+            "pattern": "^[0-9]{1,24}$",
+            "type": "string"
+          },
+          "edit": {
+            "additionalProperties": false,
+            "properties": {
+              "blocking_trigger_ids": {
+                "anyOf": [
+                  {
+                    "items": {
+                      "pattern": "^[0-9]{1,24}$",
+                      "type": "string"
+                    },
+                    "maxItems": 10,
+                    "type": "array"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              },
+              "firing_trigger_ids": {
+                "anyOf": [
+                  {
+                    "items": {
+                      "pattern": "^[0-9]{1,24}$",
+                      "type": "string"
+                    },
+                    "maxItems": 10,
+                    "type": "array"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              },
+              "name": {
+                "anyOf": [
+                  {
+                    "maxLength": 120,
+                    "minLength": 1,
+                    "pattern": ".*\\S.*",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              },
+              "parameters": {
+                "additionalProperties": {
+                  "maxLength": 160,
+                  "minLength": 1,
+                  "pattern": "^[^\\x00-\\x1f<>]+$",
+                  "type": "string"
+                },
+                "maxProperties": 10,
+                "propertyNames": {
+                  "enum": [
+                    "event_type",
+                    "event_name_standard",
+                    "event_name_custom",
+                    "eventName",
+                    "measurementIdOverride",
+                    "conversionId",
+                    "conversionLabel",
+                    "conversionValue",
+                    "currencyCode",
+                    "orderId"
+                  ]
+                },
+                "type": "object"
+              },
+              "paused": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              }
+            },
+            "type": "object"
+          },
+          "tag_id": {
+            "pattern": "^[0-9]{1,24}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "account_id",
+          "container_id",
+          "tag_id",
+          "edit"
+        ],
+        "type": "object"
+      },
+      "name": "gtm_propose_tag_edit",
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Gtm Propose Tag Edit"
     },
     {
       "_meta": {

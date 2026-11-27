@@ -10,7 +10,7 @@ from mcp.types import ToolAnnotations
 from pydantic import Field
 from requests.exceptions import RequestException
 
-from ads_mcp import google_grant, gtm_drafts
+from ads_mcp import google_grant, gtm_drafts, gtm_tag_edits
 from ads_mcp.write_policy import WriteBlocked, principal
 
 gtm_mcp = FastMCP("gtm")
@@ -187,3 +187,27 @@ def apply_tracking_draft(plan_id: str) -> dict:
 def tracking_draft_status(plan_id: str) -> dict:
     """Check a tracking proposal's approval and execution status, including a known workspace ID."""
     return draft_call(lambda: gtm_drafts.status(principal(), plan_id))
+
+
+@gtm_mcp.tool(annotations=READ)
+def inspect_published_tag(account_id: ID, container_id: ID, tag_id: ID) -> dict:
+    """Inspect an existing published tag, its editable fields and available user-defined triggers. The numeric tag_id comes from live_version."""
+    version = read(
+        f"accounts/{account_id}/containers/{container_id}/versions:live",
+        fields="containerVersionId,tag(tagId,name,type,paused,firingTriggerId,blockingTriggerId,parameter(key,type,value)),trigger(triggerId,name)",
+    )
+    return draft_call(lambda: gtm_tag_edits.inspect_tag(version, tag_id))
+
+
+@gtm_mcp.tool(
+    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False)
+)
+def propose_tag_edit(
+    account_id: ID, container_id: ID, tag_id: ID, edit: gtm_tag_edits.TagEdit
+) -> dict:
+    """Preview edits to a published tag in a new GTM web workspace. Use inspect_published_tag first for its fields and trigger IDs. Returns a before/after diff and browser approval URL. After approval, use apply_tracking_draft with the same plan ID. No production publishing."""
+    return draft_call(
+        lambda: gtm_drafts.propose_tag_edit(
+            principal(), account_id, container_id, tag_id, edit
+        )
+    )

@@ -10,7 +10,7 @@ from typing import Annotated, Literal
 from google.auth.transport.requests import AuthorizedSession
 from pydantic import BaseModel, ConfigDict, Field
 
-from ads_mcp import google_grant
+from ads_mcp import google_grant, gtm_tag_edits
 from ads_mcp.write_policy import WriteBlocked, WritePolicy, digest
 from ads_mcp.write_store import FirestorePlanStore, check_plan
 
@@ -174,12 +174,19 @@ def checked_plan(store, plan_id, owner):
     return plan
 
 
-def api_request(client, method, path, *, payload=None, fields=None):
+def api_request(
+    client, method, path, *, payload=None, fields=None, fingerprint=None
+):
+    params = {}
+    if fields:
+        params["fields"] = fields
+    if fingerprint:
+        params["fingerprint"] = fingerprint
     response = client.request(
         method,
         BASE + path,
         json=payload,
-        params={"fields": fields} if fields else None,
+        params=params or None,
         timeout=15,
         allow_redirects=False,
     )
@@ -206,15 +213,19 @@ def target_container(client, path):
     return {key: container.get(key, "") for key in ("name", "publicId")}
 
 
-def propose(owner, account_id, container_id, draft):
+def container_path_for(account_id, container_id):
     if not all(
         re.fullmatch(r"[0-9]{1,24}", item)
         for item in (account_id, container_id)
     ):
         raise WriteBlocked("Använd numeriska GTM-ID:n för konto och container.")
+    return f"accounts/{account_id}/containers/{container_id}"
+
+
+def propose(owner, account_id, container_id, draft):
+    container_path = container_path_for(account_id, container_id)
     settings = policy()
     credentials = google_grant.credentials(owner, google_grant.GTM_EDIT)
-    container_path = f"accounts/{account_id}/containers/{container_id}"
     with AuthorizedSession(credentials, refresh_timeout=12) as client:
         container = target_container(client, container_path)
     plan_id = uuid.uuid4().hex
@@ -226,6 +237,53 @@ def propose(owner, account_id, container_id, draft):
         "workspace_name": f"Viks – {draft.data_layer_event} – {plan_id[:8]}",
         "changes": build_changes(draft, plan_id),
     }
+    return save_plan(settings, owner, plan_id, change)
+
+
+def propose_tag_edit(owner, account_id, container_id, tag_id, edit):
+    container_path = container_path_for(account_id, container_id)
+    if not re.fullmatch(r"[0-9]{1,24}", tag_id):
+        raise WriteBlocked("Använd taggens numeriska ID.")
+    settings = policy()
+    credentials = google_grant.credentials(owner, google_grant.GTM_EDIT)
+    with AuthorizedSession(credentials, refresh_timeout=12) as client:
+        container = target_container(client, container_path)
+        version = api_request(
+            client,
+            "GET",
+            container_path + "/versions:live",
+            fields="containerVersionId,tag,trigger(triggerId,fingerprint)",
+        )
+    tag = gtm_tag_edits.select_tag(version, tag_id)
+    version_id = version.get("containerVersionId")
+    if not version_id:
+        raise WriteBlocked(
+            "Google returnerade ingen publicerad version att granska."
+        )
+    _, diff = gtm_tag_edits.patch_tag(tag, edit)
+    plan_id = uuid.uuid4().hex
+    change = {
+        "customer_id": plan_id,
+        "container_path": container_path,
+        "container": container,
+        "workspace_name": f"Viks – redigera tagg {tag_id} – {plan_id[:8]}",
+        "changes": diff,
+        "edit": {
+            "tag_id": tag_id,
+            "tag_name": tag["name"],
+            "tag_type": tag["type"],
+            "version_id": version_id,
+            "source_digest": gtm_tag_edits.tag_digest(tag),
+            "trigger_fingerprints": gtm_tag_edits.reviewed_triggers(
+                version, tag, diff
+            ),
+            "patch": edit.model_dump(exclude_none=True),
+        },
+    }
+    return save_plan(settings, owner, plan_id, change)
+
+
+def save_plan(settings, owner, plan_id, change):
     plan = {
         "id": plan_id,
         "owner": owner,
@@ -238,11 +296,84 @@ def propose(owner, account_id, container_id, draft):
     return {
         "plan_id": plan_id,
         "status": plan["status"],
-        "container": container,
+        "container": change["container"],
         "workspace": change["workspace_name"],
+        **(
+            {
+                "tag": {
+                    key: change["edit"][key]
+                    for key in ("tag_id", "tag_name", "tag_type", "version_id")
+                }
+            }
+            if "edit" in change
+            else {}
+        ),
         "changes": change["changes"],
         "approval_url": f"{settings.base_url}/gtm/approvals/{plan_id}",
     }
+
+
+def check_live_tag(client, container_path, edit):
+    version = api_request(
+        client,
+        "GET",
+        container_path + "/versions:live",
+        fields="containerVersionId,tag",
+    )
+    if version.get("containerVersionId") != edit["version_id"]:
+        raise WriteBlocked(
+            "En annan containerversion har publicerats. Skapa ett nytt förslag."
+        )
+    tag = gtm_tag_edits.select_tag(version, edit["tag_id"])
+    if gtm_tag_edits.tag_digest(tag) != edit["source_digest"]:
+        raise WriteBlocked(
+            "Den publicerade taggen har ändrats. Skapa ett nytt förslag."
+        )
+
+
+def edit_tag_in_workspace(client, workspace_path, change):
+    edit = change["edit"]
+    tag_path = f'{workspace_path}/tags/{edit["tag_id"]}'
+    current = api_request(client, "GET", tag_path)
+    fingerprint = current.get("fingerprint")
+    if (
+        current.get("tagId") != edit["tag_id"]
+        or not fingerprint
+        or gtm_tag_edits.tag_digest(current) != edit["source_digest"]
+    ):
+        raise WriteBlocked(
+            "Taggen i den nya arbetsytan matchar inte den granskade versionen. Ingen taggändring skickades."
+        )
+    for trigger_id, reviewed_fingerprint in edit[
+        "trigger_fingerprints"
+    ].items():
+        trigger = api_request(
+            client,
+            "GET",
+            f"{workspace_path}/triggers/{trigger_id}",
+            fields="triggerId,fingerprint",
+        )
+        if (
+            trigger.get("triggerId") != trigger_id
+            or trigger.get("fingerprint") != reviewed_fingerprint
+        ):
+            raise WriteBlocked(
+                "En vald trigger har ändrats. Ingen taggändring skickades."
+            )
+    patch = gtm_tag_edits.TagEdit.model_validate(edit["patch"])
+    payload, diff = gtm_tag_edits.patch_tag(current, patch)
+    if diff != change["changes"]:
+        raise WriteBlocked("Ändringen matchar inte godkännandet.")
+    reply = api_request(
+        client, "PUT", tag_path, payload=payload, fingerprint=fingerprint
+    )
+    if reply.get("tagId") != edit["tag_id"] or gtm_tag_edits.tag_digest(
+        reply
+    ) != gtm_tag_edits.tag_digest(payload):
+        raise WriteBlocked(
+            "Google bekräftade inte att taggen matchade det godkända utkastet."
+        )
+    return {"tag_id": edit["tag_id"], "entities": [reply["name"]]}
 
 
 def apply(owner, plan_id):
@@ -264,6 +395,8 @@ def apply(owner, plan_id):
             raise WriteBlocked(
                 "Containern har ändrats sedan granskningen. Skapa ett nytt förslag."
             )
+        if "edit" in change:
+            check_live_tag(client, container_path, change["edit"])
         store.transition(plan_id, "approved", "executing", owner=owner)
         result = {
             "workspace_name": change["workspace_name"],
@@ -290,29 +423,34 @@ def apply(owner, plan_id):
             result["workspace_id"] = wid
             result["workspace_path"] = workspace_path
             store.record_progress(plan_id, owner, result)
-            reply = api_request(
-                client,
-                "POST",
-                workspace_path + "/bulk_update",
-                payload={"changes": change["changes"]},
-            )
-            expected = {
-                entity[key]["name"]
-                for entity in change["changes"]
-                for key in ("tag", "trigger", "variable")
-                if key in entity
-            }
-            actual = {
-                entity[key]["name"]
-                for entity in reply.get("changes", [])
-                for key in ("tag", "trigger", "variable")
-                if key in entity
-            }
-            if actual != expected:
-                raise WriteBlocked(
-                    "Google bekräftade inte alla delar av utkastet."
+            if "edit" in change:
+                result.update(
+                    edit_tag_in_workspace(client, workspace_path, change)
                 )
-            result["entities"] = sorted(actual)
+            else:
+                reply = api_request(
+                    client,
+                    "POST",
+                    workspace_path + "/bulk_update",
+                    payload={"changes": change["changes"]},
+                )
+                expected = {
+                    entity[key]["name"]
+                    for entity in change["changes"]
+                    for key in ("tag", "trigger", "variable")
+                    if key in entity
+                }
+                actual = {
+                    entity[key]["name"]
+                    for entity in reply.get("changes", [])
+                    for key in ("tag", "trigger", "variable")
+                    if key in entity
+                }
+                if actual != expected:
+                    raise WriteBlocked(
+                        "Google bekräftade inte alla delar av utkastet."
+                    )
+                result["entities"] = sorted(actual)
         except Exception as exc:
             result["message"] = (
                 str(exc)
