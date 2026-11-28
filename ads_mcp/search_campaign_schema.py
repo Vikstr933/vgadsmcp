@@ -149,6 +149,16 @@ class SearchSitelink(StrictModel):
         return self
 
 
+class RadiusTarget(StrictModel):
+    label: Name = Field(description="Place or venue name shown in the approval.")
+    latitude: float = Field(ge=-90, le=90, allow_inf_nan=False, description="Confirmed WGS84 latitude in decimal degrees.")
+    longitude: float = Field(ge=-180, le=180, allow_inf_nan=False, description="Confirmed WGS84 longitude in decimal degrees.")
+    radius_km: float = Field(ge=1, allow_inf_nan=False, description="One exact inclusive radius in kilometers.")
+
+    def microdegrees(self):
+        return round(self.latitude * 1_000_000), round(self.longitude * 1_000_000)
+
+
 class CampaignPackage(StrictModel):
     name: Name
     daily_budget_micros: Micros | None = None
@@ -156,7 +166,8 @@ class CampaignPackage(StrictModel):
     bidding: Literal["MANUAL_CPC", "MAXIMIZE_CONVERSIONS", "MAXIMIZE_CONVERSION_VALUE"]
     start_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
     end_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
-    geo_target_ids: list[ID] = Field(min_length=1, max_length=30)
+    geo_target_ids: list[ID] = Field(default_factory=list, max_length=30)
+    radius_targets: list[RadiusTarget] = Field(default_factory=list, max_length=30, description="Included in addition to named areas. For radius-only targeting leave geo_target_ids empty.")
     excluded_geo_target_ids: list[ID] = Field(default_factory=list, max_length=30)
     language_ids: list[ID] = Field(min_length=1, max_length=10)
     conversion_action_ids: list[ID] = Field(min_length=1, max_length=20)
@@ -192,6 +203,11 @@ class CampaignPackage(StrictModel):
                 raise ValueError(
                     "Duplicate targeting or conversion IDs are not allowed."
                 )
+        if not self.geo_target_ids and not self.radius_targets:
+            raise ValueError("Provide an included location or a radius target.")
+        circles = {(r.microdegrees(), r.radius_km) for r in self.radius_targets}
+        if len(circles) != len(self.radius_targets):
+            raise ValueError("Duplicate radius targets are not allowed.")
         if set(self.geo_target_ids) & set(self.excluded_geo_target_ids):
             raise ValueError("A location cannot be both included and excluded.")
         if self.final_url_suffix and (

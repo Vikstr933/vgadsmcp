@@ -4,6 +4,8 @@
 med en tillgångsgrupp. Det passar till exempel biljettköp och besöksregistrering
 för en mässa.
 
+Även här kan du välja en [radie runt en kartnål](search-campaign-builder.md#radie-runt-en-plats).
+
 ## Förbered kampanjen
 
 1. Välj annonskonto och vid behov MCC för åtkomst. Ange geografi, språk,

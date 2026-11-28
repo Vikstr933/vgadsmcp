@@ -5,6 +5,18 @@ from decimal import Decimal
 from html import escape
 
 
+def radius_review_rows(spec):
+    return [
+        (
+            "Inkludera radie",
+            f"{target['radius_km']} km runt {target['label']} "
+            f"({round(target['latitude'] * 1_000_000) / 1_000_000:.6f}, "
+            f"{round(target['longitude'] * 1_000_000) / 1_000_000:.6f})",
+        )
+        for target in spec.get("radius_targets", [])
+    ]
+
+
 def render_search_review(plan):
     change, snapshot = plan["change"], plan["snapshot"]
     spec = change["search_campaign"]
@@ -96,7 +108,7 @@ def render_search_review(plan):
                     f"{v['name']}, {v['country']} ({v['id']})",
                 )
                 for v in snapshot["locations"]
-            ]
+            ] + radius_review_rows(spec)
         )
     )
     existing_goal = snapshot.get("existing_custom_goal")

@@ -25,8 +25,12 @@ fortfarande bara en tom kampanj.
    ett nytt godkännande.
 
 Återanslut/uppdatera anslutningen i Claude efter driftsättning om det nya verktyget
-inte syns. `writes_policy_status.search_campaign_builder_version` ska vara `2`.
+inte syns. `writes_policy_status.search_campaign_builder_version` ska vara `7` eller senare.
 Ingen ny hemlighet, ny tjänst eller ändring av befintliga åtkomstgränser behövs.
+
+## Radie runt en plats
+
+För en ny kampanj kan du be Claude använda en kartnål som mittpunkt. Ange en exakt radie i kilometer, exempelvis 12 km. I `radius_targets` skickar Claude platsens namn (`label`), latitud, longitud och `radius_km`. Koordinaterna anges i decimalgrader och radien måste vara minst 1 km. Vid enbart radie lämnas `geo_target_ids` tom. Varje ytterligare inkluderad ort eller region utökar målområdet. Kontrollera mittpunkt och avstånd i godkännandet.
 
 ## Totalbudget
 

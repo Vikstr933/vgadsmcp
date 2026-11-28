@@ -789,3 +789,37 @@ def test_workflow_partial_failure_retains_receipt_and_lock(gateway, failure):
     assert (
         sum(not c.kwargs["validate_only"] for c in gateway.mutate.call_args_list) == 1
     )
+
+
+def test_radius_only_preview_and_readback(gateway):
+    target = dict(label="<Test center>", latitude=55.5555555, longitude=-12.345678, radius_km=12.5)
+    proposal = change(geo_target_ids=[], excluded_geo_target_ids=[], radius_targets=[target])
+    rows = snapshot_rows(gateway)
+    del rows[4]  # No named locations to resolve.
+    gateway.rows = Mock(side_effect=rows)
+    state = snapshot_campaign_package(gateway, proposal)
+    assert state["locations"] == []
+    review = render_search_review(dict(change=proposal.model_dump(), snapshot=state, expires_at=2_000_000_000))
+    assert "12.5 km runt &lt;Test center&gt; (55.555556, -12.345678)" in review
+    builder = compile_search(gateway, proposal, state)
+    receipt = creation_receipt(proposal, builder, response_for(gateway, builder))
+    objects, _, _ = install_readback(gateway, builder, receipt)
+    criteria = objects["campaign_criterion"]
+    assert all("location" not in criterion for criterion in criteria)
+    circle, = [criterion.proximity for criterion in criteria if "proximity" in criterion]
+    assert circle.radius_units.name == "KILOMETERS" and circle.radius == 12.5
+    assert circle.geo_point.latitude_in_micro_degrees == 55_555_556
+    assert circle.geo_point.longitude_in_micro_degrees == -12_345_678
+    assert verify_campaign_package(gateway, proposal, state, receipt)["status"] == "PAUSED"
+    circle.radius = 13
+    with pytest.raises(WriteBlocked, match="proximity.radius"):
+        verify_campaign_package(gateway, proposal, state, receipt)
+
+
+@pytest.mark.parametrize("overrides", [{"latitude": 91}, {"longitude": -181}, {"radius_km": 0.9}, {"radius_km": float("inf")}, {"latitude": True}])
+def test_invalid_radius_target(overrides):
+    target = dict(label="Center", latitude=55.5, longitude=13.0, radius_km=10)
+    with pytest.raises(ValidationError):
+        change(radius_targets=[{**target, **overrides}])
+    with pytest.raises(ValidationError, match="Duplicate radius targets"):
+        change(radius_targets=[target, {**target, "label":"Same pin"}])

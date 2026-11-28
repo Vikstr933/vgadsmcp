@@ -4,6 +4,8 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from html import escape
 
+from ads_mcp.search_campaign_review import radius_review_rows
+
 
 def render_pmax_review(plan):
     change, snapshot = plan["change"], plan["snapshot"]
@@ -68,7 +70,7 @@ def render_pmax_review(plan):
                     f"{geo['name']}, {geo['country']} ({geo['id']})",
                 )
                 for geo in snapshot["locations"]
-            ]
+            ] + radius_review_rows(spec)
             + [
                 ("Språk", f"{lang['name']} ({lang['id']})")
                 for lang in snapshot["languages"]

@@ -2759,7 +2759,7 @@
         "idempotentHint": false,
         "readOnlyHint": false
       },
-      "description": "Validate a complete PAUSED standard Performance Max campaign for purchases, registrations or leads. Select client-owned conversion actions and existing Ads asset IDs for images, logo and any YouTube videos. Discover them with search_search on asset. Supply approved text, URL, dates, targeting and one budget (1 currency unit = 1,000,000 micros). Explicitly choose whether to accept possible Google-generated video; ask the owner if no video assets are available. Disables URL expansion, text customization and specified image/video enhancements. No Merchant Center feed. After independent browser approval, execute_approved_plan creates paused and verifies the campaign. For an uncertain write with saved IDs, use reconcile_pmax_plan.",
+      "description": "Validate a complete PAUSED standard Performance Max campaign for purchases, registrations or leads. For a radius, set radius_targets with label, confirmed latitude/longitude and one exact radius_km (minimum 1). Ask for a map pin if the center is ambiguous. Leave geo_target_ids empty for radius-only targeting; other included areas expand reach. Select client-owned conversion actions and existing Ads asset IDs for images, logo and any YouTube videos. Discover them with search_search on asset. Supply approved text, URL, dates, targeting and one budget (1 currency unit = 1,000,000 micros). Explicitly choose whether to accept possible Google-generated video; ask the owner if no video assets are available. Disables URL expansion, text customization and specified image/video enhancements. No Merchant Center feed. After independent browser approval, execute_approved_plan creates paused and verifies the campaign. For an uncertain write with saved IDs, use reconcile_pmax_plan.",
       "inputSchema": {
         "additionalProperties": false,
         "properties": {
@@ -2852,7 +2852,6 @@
                   "type": "string"
                 },
                 "maxItems": 30,
-                "minItems": 1,
                 "type": "array"
               },
               "headlines": {
@@ -2902,6 +2901,46 @@
                 "minLength": 1,
                 "type": "string"
               },
+              "radius_targets": {
+                "description": "Included in addition to named areas. For radius-only targeting leave geo_target_ids empty.",
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "label": {
+                      "description": "Place or venue name shown in the approval.",
+                      "maxLength": 100,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "latitude": {
+                      "description": "Confirmed WGS84 latitude in decimal degrees.",
+                      "maximum": 90,
+                      "minimum": -90,
+                      "type": "number"
+                    },
+                    "longitude": {
+                      "description": "Confirmed WGS84 longitude in decimal degrees.",
+                      "maximum": 180,
+                      "minimum": -180,
+                      "type": "number"
+                    },
+                    "radius_km": {
+                      "description": "One exact inclusive radius in kilometers.",
+                      "minimum": 1,
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "label",
+                    "latitude",
+                    "longitude",
+                    "radius_km"
+                  ],
+                  "type": "object"
+                },
+                "maxItems": 30,
+                "type": "array"
+              },
               "square_image_asset_ids": {
                 "items": {
                   "pattern": "^[0-9]{1,20}$",
@@ -2942,7 +2981,6 @@
               "bidding",
               "start_date",
               "end_date",
-              "geo_target_ids",
               "language_ids",
               "conversion_action_ids",
               "asset_group_name",
@@ -3005,7 +3043,7 @@
         "idempotentHint": false,
         "readOnlyHint": false
       },
-      "description": "Preview a COMPLETE PAUSED Search campaign: budget, dates, locations/languages, ad groups, EXACT/PHRASE keywords and negatives, responsive search ads, sitelinks/callouts and explicit client-owned conversion action IDs. Use this instead of preview_create_paused_search for full builds. Use keyword_planning tools first when search-volume research or forecasts are needed; never invent those metrics. Supply exactly one of daily_budget_micros or total_budget_micros. Total budget is a hard campaign-period cap, requires 3 to 90 days, and does not cap each individual day. 1 currency unit = 1,000,000 micros. Requires real URLs, confirmed year/dates, budget, bidding, targeting and EU political-ad declaration; never invent missing facts. Google Search only, presence targeting, AI Max/text customization/URL expansion off. Children are enabled UNDER a paused campaign; no delivery until separate activation. Account-wide automatic assets/recommendations need manual review. Preview does not mutate Google Ads. After human browser approval, execute_approved_plan creates the package, configures campaign-only conversion goals in a second stage, and reads back. Selected custom-goal conversions count for bidding even if secondary. Shared MCC-owned conversions unsupported. On an uncertain result inspect plan_status; never retry creation.",
+      "description": "Preview a COMPLETE PAUSED Search campaign: budget, dates, locations/languages, ad groups, EXACT/PHRASE keywords and negatives, responsive search ads, sitelinks/callouts and explicit client-owned conversion action IDs. For a radius, set radius_targets with label, confirmed latitude/longitude and one exact radius_km (minimum 1). Ask for a map pin if the center is ambiguous. Leave geo_target_ids empty for radius-only targeting; other included areas expand reach. Use this instead of preview_create_paused_search for full builds. Use keyword_planning tools first when search-volume research or forecasts are needed; never invent those metrics. Supply exactly one of daily_budget_micros or total_budget_micros. Total budget is a hard campaign-period cap, requires 3 to 90 days, and does not cap each individual day. 1 currency unit = 1,000,000 micros. Requires real URLs, confirmed year/dates, budget, bidding, targeting and EU political-ad declaration; never invent missing facts. Google Search only, presence targeting, AI Max/text customization/URL expansion off. Children are enabled UNDER a paused campaign; no delivery until separate activation. Account-wide automatic assets/recommendations need manual review. Preview does not mutate Google Ads. After human browser approval, execute_approved_plan creates the package, configures campaign-only conversion goals in a second stage, and reads back. Selected custom-goal conversions count for bidding even if secondary. Shared MCC-owned conversions unsupported. On an uncertain result inspect plan_status; never retry creation.",
       "inputSchema": {
         "additionalProperties": false,
         "properties": {
@@ -3234,7 +3272,6 @@
                   "type": "string"
                 },
                 "maxItems": 30,
-                "minItems": 1,
                 "type": "array"
               },
               "language_ids": {
@@ -3275,6 +3312,46 @@
                   "type": "object"
                 },
                 "maxItems": 200,
+                "type": "array"
+              },
+              "radius_targets": {
+                "description": "Included in addition to named areas. For radius-only targeting leave geo_target_ids empty.",
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "label": {
+                      "description": "Place or venue name shown in the approval.",
+                      "maxLength": 100,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "latitude": {
+                      "description": "Confirmed WGS84 latitude in decimal degrees.",
+                      "maximum": 90,
+                      "minimum": -90,
+                      "type": "number"
+                    },
+                    "longitude": {
+                      "description": "Confirmed WGS84 longitude in decimal degrees.",
+                      "maximum": 180,
+                      "minimum": -180,
+                      "type": "number"
+                    },
+                    "radius_km": {
+                      "description": "One exact inclusive radius in kilometers.",
+                      "minimum": 1,
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "label",
+                    "latitude",
+                    "longitude",
+                    "radius_km"
+                  ],
+                  "type": "object"
+                },
+                "maxItems": 30,
                 "type": "array"
               },
               "sitelinks": {
@@ -3349,7 +3426,6 @@
               "bidding",
               "start_date",
               "end_date",
-              "geo_target_ids",
               "language_ids",
               "conversion_action_ids",
               "ad_groups"

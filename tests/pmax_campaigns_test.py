@@ -106,6 +106,11 @@ def test_snapshot_checks_asset_account_ratio_and_conversion(gateway):
     assert "4,500.00 SEK" in rendered and "Buy tickets" in rendered
     assert "Test &lt;image&gt;" in rendered and "<image>" not in rendered
     assert "Approved fixture" in rendered and "Purchase" in rendered
+    radius_plan = proposal(radius_targets=[
+        dict(label="Venue", latitude=55.5, longitude=13.0, radius_km=10)
+    ])
+    rendered = render_pmax_review(dict(change=radius_plan.model_dump(), snapshot=state, expires_at=2_000_000_000))
+    assert "10.0 km runt Venue" in rendered
 
     assets[1].asset.image_asset.full_size.width_pixels = 500
     gateway.rows = Mock(side_effect=rows)
@@ -118,7 +123,10 @@ def test_snapshot_checks_asset_account_ratio_and_conversion(gateway):
 
 
 def test_compile_and_verify_standard_pmax_with_explicit_goals(gateway):
-    change, state = proposal(), before()
+    change = proposal(radius_targets=[
+        dict(label="Venue", latitude=55.5, longitude=13.0, radius_km=10)
+    ])
+    state = before()
     builder = compile_pmax(gateway, change, state)
     budget = builder.operations[0].campaign_budget_operation.create
     campaign = builder.operations[1].campaign_operation.create

@@ -103,12 +103,14 @@ def snapshot_campaign_package(gateway, change):
         blocked("One or more selected conversion actions were not found.")
     goal_state = customer_goal_state(gateway, change)
     geo_ids = spec.geo_target_ids + spec.excluded_geo_target_ids
-    geo_rows = gateway.rows(
-        change.customer_id,
-        "SELECT geo_target_constant.id, geo_target_constant.name, geo_target_constant.country_code, geo_target_constant.status FROM geo_target_constant WHERE geo_target_constant.id IN ("
-        + ",".join(geo_ids)
-        + ")",
-    )
+    geo_rows = []
+    if geo_ids:
+        geo_rows = gateway.rows(
+            change.customer_id,
+            "SELECT geo_target_constant.id, geo_target_constant.name, geo_target_constant.country_code, geo_target_constant.status FROM geo_target_constant WHERE geo_target_constant.id IN ("
+            + ",".join(geo_ids)
+            + ")",
+        )
     geos = sorted(
         [
             dict(
@@ -297,6 +299,19 @@ def add_targeting(builder, spec, campaign):
                     "location.geo_target_constant": f"geoTargetConstants/{geo}",
                 },
             )
+    for target in spec.radius_targets:
+        lat, lon = target.microdegrees()
+        builder.create(
+            "campaign_criterion",
+            {
+                "campaign": campaign,
+                "negative": False,
+                "proximity.geo_point.latitude_in_micro_degrees": lat,
+                "proximity.geo_point.longitude_in_micro_degrees": lon,
+                "proximity.radius": target.radius_km,
+                "proximity.radius_units": "KILOMETERS",
+            },
+        )
     for language in spec.language_ids:
         builder.create(
             "campaign_criterion",
