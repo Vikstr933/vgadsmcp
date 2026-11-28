@@ -27,6 +27,8 @@ ADMIN_EMAIL_DIGESTS = frozenset(
 STOCKHOLM = ZoneInfo("Europe/Stockholm")
 DAYS = 30
 PRODUCT_NAMES = {
+    "drive": "Google Drive",
+    "ga4": "Google Analytics 4",
     "google_ads": "Google Ads",
     "gtm": "Google Tag Manager",
     "linkedin": "LinkedIn Ads",
@@ -35,6 +37,8 @@ PRODUCT_NAMES = {
     "unclassified": "Oklassificerade anrop",
 }
 PRODUCT_BY_CATEGORY = {
+    "drive": "drive",
+    "ga4": "ga4",
     "customers": "google_ads",
     "search": "google_ads",
     "metadata": "google_ads",
@@ -207,7 +211,7 @@ def product_summary_html(product_calls, total_calls):
         for key, count in sorted(
             product_calls.items(), key=lambda item: -item[1]
         )
-        if key in ("google_ads", "gtm", "linkedin") or count
+        if key in ("google_ads", "gtm", "linkedin", "drive", "ga4") or count
     )
     previous = total_calls - recorded
     note = (

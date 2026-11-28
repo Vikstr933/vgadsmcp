@@ -150,7 +150,7 @@ async def homepage(request):
         )
         + '</div></section><section class="getting-started"><h2>Så kommer du igång</h2>'
         '<ol class="grid admin-grid"><li><strong>Logga in med Google</strong><p>Skapa eller öppna ditt kostnadsfria Viks-konto.</p></li>'
-        "<li><strong>Anslut dina produkter</strong><p>Välj Google Ads, LinkedIn Ads eller Google Tag Manager från din översikt.</p></li>"
+        "<li><strong>Anslut dina produkter</strong><p>Välj de produkter du vill använda från din översikt.</p></li>"
         "<li><strong>Lägg till verktyget i Claude</strong><p>Kopiera adressen från din översikt. Skriv sedan Testa vADS i Claude för att kontrollera dina anslutningar.</p></li></ol>"
         "</section>",
         title="Annonser och spårning i Claude",
@@ -169,7 +169,7 @@ def register_public_site_routes(mcp):
             )
             body = body.replace(
                 "</article>",
-                "<h2>Viks-medlemskap</h2><p>När du registrerar dig sparar vi din verifierade Google-identitet, krypterad e-postadress och din åtkomststatus. Administratörerna granskar ansökningar från externa användare. Medlemskapet är kostnadsfritt. När du ansluter Google Ads separat sparas dina åtkomstuppgifter krypterat för att kunna hämta och förnya åtkomsten. För att avsluta medlemskapet eller begära radering, använd kontaktadressen ovan.</p></article>",
+                "<h2>Google Drive och Google Analytics 4</h2><p>Varje anslutning har separat läsåtkomst som sparas krypterat för medlemmen. För Drive ber Google om läsåtkomst till dina filer. Medlemmen kopplar befintliga kundmappar i Viks. Mapp-ID och namn sparas. Filuppgifter och begärda bildförhandsvisningar från dessa mappar, samt begärda GA4-rapporter, skickas till medlemmens AI-klient. Du kan ta bort en mapp i Min översikt och återkalla åtkomsten i Google.</p><h2>Viks-medlemskap</h2><p>När du registrerar dig sparar vi din verifierade Google-identitet, krypterad e-postadress och din åtkomststatus. Administratörerna granskar ansökningar från externa användare. Medlemskapet är kostnadsfritt. När du ansluter Google Ads separat sparas dina åtkomstuppgifter krypterat för att kunna hämta och förnya åtkomsten. För att avsluta medlemskapet eller begära radering, använd kontaktadressen ovan.</p></article>",
             )
             body = body.replace(
                 "</article>",

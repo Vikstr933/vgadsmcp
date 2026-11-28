@@ -18,7 +18,7 @@ from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, RedirectResponse
 
-from ads_mcp import google_grant
+from ads_mcp import google_grant, google_media
 from ads_mcp.membership import (
     ACCOUNT,
     ADMIN,
@@ -45,6 +45,8 @@ ADS = google_grant.ADS
 CHANNEL_SCOPES = {
     "google": ADS,
     "gtm": google_grant.GTM_READ,
+    "drive": google_grant.DRIVE_READ,
+    "ga4": google_grant.GA4_READ,
     "gtm_edit": google_grant.GTM_EDIT,
 }
 HEAD = {
@@ -137,7 +139,7 @@ async def google_start(request):
             ):
                 return RedirectResponse(ACCOUNT, 303, headers=HEAD)
             bound = current["owner"]
-            if channel in ("gtm", "gtm_edit"):
+            if channel in ("gtm", "gtm_edit", "drive", "ga4"):
                 target = ACCOUNT
         verifier = secrets.token_urlsafe(48)
         challenge = (
@@ -243,7 +245,7 @@ async def google_callback(request):
         state = await run_in_threadpool(member_state, identity, signup=True)
         ids = None
         if bound and state == "active":
-            if channel in ("gtm", "gtm_edit"):
+            if channel in ("gtm", "gtm_edit", "drive", "ga4"):
                 await run_in_threadpool(
                     google_grant.save,
                     owner,
@@ -261,7 +263,11 @@ async def google_callback(request):
                 )
             except Exception:
                 pass
-        if channel in ("gtm", "gtm_edit") and bound and state == "active":
+        if (
+            channel in ("gtm", "gtm_edit", "drive", "ga4")
+            and bound
+            and state == "active"
+        ):
             previous = await run_in_threadpool(session, request)
             if previous and previous.get("owner") == owner:
                 ids = previous.get("accounts")
@@ -476,7 +482,7 @@ def channel_card(key, info, primary, secondary=""):
 async def channel_cards(user, request):
     import asyncio
 
-    google, linkedin, gtm = await asyncio.gather(
+    google, linkedin, gtm, drive, ga4 = await asyncio.gather(
         google_details(user),
         run_in_threadpool(
             linkedin_details,
@@ -484,6 +490,8 @@ async def channel_cards(user, request):
             request.query_params.get("sida", ""),
         ),
         run_in_threadpool(gtm_card, user["owner"]),
+        run_in_threadpool(read_card, user["owner"], "drive"),
+        run_in_threadpool(read_card, user["owner"], "ga4"),
     )
     google_action = "Förnya åtkomst" if google.linked else "Anslut Google Ads"
     linkedin_action = "Förnya åtkomst" if linkedin.linked else "Anslut LinkedIn"
@@ -501,9 +509,78 @@ async def channel_cards(user, request):
             f'<button aria-label="{linkedin_action} – LinkedIn Ads">{linkedin_action}</button></form>',
         )
         + gtm
+        + drive
+        + ga4
         + '</div><small class="channel-trademarks">Google Ads och Google Tag Manager är varumärken som tillhör Google LLC. '
         "LinkedIn är ett varumärke som tillhör LinkedIn Corporation och dess närstående bolag.</small>"
     )
+
+
+def read_card(owner, channel):
+    try:
+        linked = (
+            google_grant.grant_ref(owner, CHANNEL_SCOPES[channel]).get().exists
+        )
+        status = ChannelDetails(
+            "Läsåtkomst sparad" if linked else "Ej anslutet",
+            "good" if linked else "neutral",
+            linked,
+        )
+        if channel == "drive" and linked:
+            listed = "".join(
+                f'<li>{html.escape(row.get("name"))} <button name="remove" value="{html.escape(row.id, quote=True)}">Koppla från mappen</button></li>'
+                for row in google_media.folders(owner).stream()
+            )
+            status = status._replace(
+                content=(
+                    f'<form method="post" action="/anslutningar/drive-mappar"><ul>{listed}</ul></form>'
+                    '<form method="post" action="/anslutningar/drive-mappar"><label>Kundens mapplänk <input type="url" required name="link"></label><button>Koppla mapp</button></form>'
+                )
+            )
+        elif channel == "drive":
+            status = status._replace(
+                content="<p>Google ber om läsåtkomst till din Drive. I Viks väljer du vilka kundmappar Claude får läsa.</p>"
+            )
+    except Exception:
+        status = ChannelDetails("Status kunde inte hämtas", "warning", False)
+    action = (
+        "Förnya läsåtkomst"
+        if status.linked
+        else "Anslut " + PRODUCTS[channel][0]
+    )
+    return channel_card(
+        channel,
+        status,
+        f'<a class="btn" href="/anslutningar/google?kanal={channel}">{action}</a>',
+    )
+
+
+async def manage_drive_folders(request):
+    user = await run_in_threadpool(session, request)
+    if not user or await run_in_threadpool(member_state, user) != "active":
+        return RedirectResponse(ACCOUNT, 303, headers=HEAD)
+    if request.headers.get("origin") != config(storage_only=True)["base_url"]:
+        return page("Ogiltigt ursprung.", 403)
+    form = await request.form()
+    try:
+        if "remove" in form:
+            root = str(form["remove"])
+            if not re.fullmatch(google_media.FILE_ID, root):
+                raise WriteBlocked("Ogiltigt mapp-ID.")
+            await run_in_threadpool(
+                lambda: google_media.folders(user["owner"])
+                .document(root)
+                .delete()
+            )
+        else:
+            await run_in_threadpool(
+                google_media.link_folder,
+                user["owner"],
+                str(form.get("link", "")).strip(),
+            )
+    except WriteBlocked as exc:
+        return page(html.escape(str(exc)), 400, user=user)
+    return RedirectResponse(ACCOUNT, 303, headers=HEAD)
 
 
 def gtm_card(owner):
@@ -579,4 +656,7 @@ def register_dashboard(mcp):
     mcp.custom_route("/logga-ut", methods=["POST"])(logout)
     mcp.custom_route(ACTIVITY_PATH, methods=["GET"])(activity_page)
     mcp.custom_route(HOME, methods=["GET", "POST"])(dashboard)
+    mcp.custom_route(HOME + "/drive-mappar", methods=["POST"])(
+        manage_drive_folders
+    )
     mcp.custom_route(HOME + "/google", methods=["GET"])(google_start)

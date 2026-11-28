@@ -147,10 +147,26 @@ def test_existing_callbacks_and_browser_binding():
             == hub.ACCOUNT
         )
         assert save.call_args.args[-1] == hub.google_grant.GTM_EDIT
+        for key, scope in (
+            ("drive", hub.google_grant.DRIVE_READ),
+            ("ga4", hub.google_grant.GA4_READ),
+        ):
+            start = client.get(
+                hub.HOME + "/google?kanal=" + key, follow_redirects=False
+            )
+            query = parse_qs(urlsplit(start.headers["location"]).query)
+            assert query["scope"] == ["openid email " + scope]
+            result = client.get(
+                "/auth/callback",
+                params={"code": "test", "state": query["state"][0]},
+                follow_redirects=False,
+            )
+            assert result.headers["location"] == hub.ACCOUNT
+            assert save.call_args.args[-1] == scope
         dashboard = client.get(hub.HOME)
         assert all(x in dashboard.text for x in ("123", "456", "v@example.com"))
         assert dashboard.text.count("<summary>Visa konton</summary>") == 2
-        assert dashboard.text.count('class="channel-card__primary"') == 3
+        assert dashboard.text.count('class="channel-card__primary"') == 5
         assert all(
             f"/icons/{filename}" in dashboard.text
             for filename in (

@@ -3,6 +3,8 @@
 from importlib.resources import files
 
 PRODUCTS = {
+    "drive": ("Google Drive", "google-drive.png", "image/png"),
+    "ga4": ("Google Analytics 4", "google-analytics.svg", "image/svg+xml"),
     # https://about.google/brand-resource-center/products-and-services/
     "google": ("Google Ads", "google-ads.webp", "image/webp"),
     # https://brand.linkedin.com/downloads — in-logo.zip, LI-In-Bug.png

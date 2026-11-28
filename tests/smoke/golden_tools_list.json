@@ -40,6 +40,255 @@
         }
       },
       "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "List the Drive root folders explicitly linked by this member in Min \u00c3\u00b6versikt.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "name": "drive_list_customer_folders",
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Drive List Customer Folders"
+    },
+    {
+      "_meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "List files and folders inside a linked customer folder, newest first. Start with an empty subfolder_ids list, then append each chosen child folder ID. Follow nextPageToken.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "page_token": {
+            "anyOf": [
+              {
+                "maxLength": 4096,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "root_id": {
+            "pattern": "^[A-Za-z0-9_-]{1,200}$",
+            "type": "string"
+          },
+          "subfolder_ids": {
+            "items": {
+              "pattern": "^[A-Za-z0-9_-]{1,200}$",
+              "type": "string"
+            },
+            "maxItems": 24,
+            "type": "array"
+          }
+        },
+        "required": [
+          "root_id",
+          "subfolder_ids"
+        ],
+        "type": "object"
+      },
+      "name": "drive_list_material",
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Drive List Material"
+    },
+    {
+      "_meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "Return a resized visual preview of a selected JPG, PNG, WebP or GIF. For animations this shows the first frame. No upload or ad creation.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "file_id": {
+            "pattern": "^[A-Za-z0-9_-]{1,200}$",
+            "type": "string"
+          },
+          "root_id": {
+            "pattern": "^[A-Za-z0-9_-]{1,200}$",
+            "type": "string"
+          },
+          "subfolder_ids": {
+            "items": {
+              "pattern": "^[A-Za-z0-9_-]{1,200}$",
+              "type": "string"
+            },
+            "maxItems": 24,
+            "type": "array"
+          }
+        },
+        "required": [
+          "root_id",
+          "subfolder_ids",
+          "file_id"
+        ],
+        "type": "object"
+      },
+      "name": "drive_preview_image",
+      "title": "Drive Preview Image"
+    },
+    {
+      "_meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "List GA4 accounts and properties visible to the member. Continue with nextPageToken.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "page_token": {
+            "anyOf": [
+              {
+                "maxLength": 4096,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "type": "object"
+      },
+      "name": "ga4_list_properties",
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Ga4 List Properties"
+    },
+    {
+      "_meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "Read aggregate event counts by event name for the GA4 realtime window.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "property_id": {
+            "pattern": "^[1-9][0-9]{0,19}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "property_id"
+        ],
+        "type": "object"
+      },
+      "name": "ga4_realtime_events",
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Ga4 Realtime Events"
+    },
+    {
+      "_meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true
+      },
+      "description": "Read an aggregate GA4 report for inclusive ISO dates. Examples include sessions by sessionSourceMedium, eventCount by eventName, or purchaseRevenue by date. Use rowCount and offset for pagination.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "dimensions": {
+            "items": {
+              "pattern": "^[A-Za-z][A-Za-z0-9_:]{0,127}$",
+              "type": "string"
+            },
+            "maxItems": 9,
+            "type": "array"
+          },
+          "end_date": {
+            "format": "date",
+            "type": "string"
+          },
+          "limit": {
+            "default": 100,
+            "maximum": 1000,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "metrics": {
+            "items": {
+              "pattern": "^[A-Za-z][A-Za-z0-9_:]{0,127}$",
+              "type": "string"
+            },
+            "maxItems": 10,
+            "minItems": 1,
+            "type": "array"
+          },
+          "offset": {
+            "default": 0,
+            "maximum": 10000000,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "property_id": {
+            "pattern": "^[1-9][0-9]{0,19}$",
+            "type": "string"
+          },
+          "start_date": {
+            "format": "date",
+            "type": "string"
+          }
+        },
+        "required": [
+          "property_id",
+          "start_date",
+          "end_date",
+          "metrics",
+          "dimensions"
+        ],
+        "type": "object"
+      },
+      "name": "ga4_run_report",
+      "outputSchema": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Ga4 Run Report"
+    },
+    {
+      "_meta": {
+        "fastmcp": {
+          "tags": []
+        }
+      },
+      "annotations": {
         "destructiveHint": false,
         "idempotentHint": true,
         "readOnlyHint": false
@@ -1936,7 +2185,9 @@
               "all",
               "google_ads",
               "gtm",
-              "linkedin"
+              "linkedin",
+              "ga4",
+              "drive"
             ],
             "type": "string"
           }

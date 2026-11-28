@@ -1,4 +1,4 @@
-"""Read-only live checks for the three Viks product connections."""
+"""Read-only live checks for the Viks product connections."""
 
 import asyncio
 import os
@@ -13,7 +13,7 @@ from mcp.types import ToolAnnotations
 from pydantic import Field
 from starlette.concurrency import run_in_threadpool
 
-from ads_mcp import google_grant, gtm_drafts
+from ads_mcp import google_grant, google_media, gtm_drafts
 from ads_mcp.linkedin_auth import connection_store
 from ads_mcp.linkedin_client import LinkedInAPI
 from ads_mcp.utils import get_googleads_service, google_ads_error_codes
@@ -162,9 +162,28 @@ def linkedin_check(owner, account_id):
     return {"read": safe_check(read), "write_setup": {"mode": mode}}
 
 
+def google_product_check(owner, scope):
+    def read():
+        if scope == google_grant.GA4_READ:
+            url = (
+                "https://analyticsadmin.googleapis.com/v1beta/accountSummaries"
+            )
+            params = {"pageSize": 1}
+        else:
+            url = "https://www.googleapis.com/drive/v3/about"
+            params = {"fields": "kind"}
+        with google_media.google_session(owner, scope) as client:
+            google_media.checked(client.get(url, params=params, timeout=12))
+        return {"result": "reachable"}
+
+    return {"read": safe_check(read)}
+
+
 @status_mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
 async def check_connections(
-    product: Literal["all", "google_ads", "gtm", "linkedin"] = "all",
+    product: Literal[
+        "all", "google_ads", "gtm", "linkedin", "ga4", "drive"
+    ] = "all",
     google_customer_id: GAdsId | None = None,
     google_manager_id: GAdsId | None = None,
     gtm_account_id: GtmId | None = None,
@@ -190,6 +209,8 @@ async def check_connections(
         )
     checks = {
         "google_ads": (google_check, google_customer_id, google_manager_id),
+        "ga4": (google_product_check, owner, google_grant.GA4_READ),
+        "drive": (google_product_check, owner, google_grant.DRIVE_READ),
         "gtm": (gtm_check, owner, gtm_account_id, gtm_container_id),
         "linkedin": (linkedin_check, owner, linkedin_account_id),
     }

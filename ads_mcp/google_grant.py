@@ -12,7 +12,11 @@ ADS = "https://www.googleapis.com/auth/adwords"
 
 GTM_READ = "https://www.googleapis.com/auth/tagmanager.readonly"
 GTM_EDIT = "https://www.googleapis.com/auth/tagmanager.edit.containers"
+DRIVE_READ = "https://www.googleapis.com/auth/drive.readonly"
+GA4_READ = "https://www.googleapis.com/auth/analytics.readonly"
 SERVICES = {
+    DRIVE_READ: ("Google Drive", "viks_drive_grants"),
+    GA4_READ: ("Google Analytics 4", "viks_ga4_grants"),
     ADS: ("Google Ads", "viks_google_ads_grants"),
     GTM_READ: ("Google Tag Manager", "viks_gtm_grants"),
     GTM_EDIT: ("Google Tag Manager – utkast", "viks_gtm_edit_grants"),

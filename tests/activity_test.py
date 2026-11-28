@@ -117,6 +117,8 @@ def test_daily_summary_and_one_through_nine_calls():
             "google_ads": 1,
             "gtm": 3,
             "linkedin": 0,
+            "drive": 0,
+            "ga4": 0,
             "connection_check": 0,
             "other": 0,
             "unclassified": 0,
