@@ -77,3 +77,39 @@ def test_drive_preview_reads_only_direct_children_of_selected_folder():
         info.return_value["parents"] = ["december"]
         preview = drive.preview_image("customer", ["december"], "image")
         assert Image.open(BytesIO(preview.data)).format == "JPEG"
+
+
+def test_chat_link_checks_member_access_and_returns_usable_root():
+    from contextlib import nullcontext
+    from ads_mcp.tools import drive
+
+    url = " https://drive.google.com/drive/folders/customer?usp=sharing "
+    client = MagicMock()
+    with (
+        patch.object(drive, "principal", return_value="member"),
+        patch.object(
+            media, "google_session", return_value=nullcontext(client)
+        ) as session,
+        patch.object(
+            media,
+            "metadata",
+            return_value={"mimeType": media.FOLDER, "name": "Folkness"},
+        ) as meta,
+        patch.object(media, "folders") as roots,
+    ):
+        assert drive.link_customer_folder(url) == {
+            "root_id": "customer",
+            "name": "Folkness",
+        }
+        session.assert_called_once_with("member", media.google_grant.DRIVE_READ)
+        meta.assert_called_once_with(client, "customer")
+        roots.assert_called_once_with("member")
+        roots.return_value.document.assert_called_once_with("customer")
+        roots.return_value.document.return_value.set.assert_called_once_with(
+            {"name": "Folkness"}
+        )
+        roots.reset_mock()
+        meta.side_effect = WriteBlocked("Google returnerade HTTP 403.")
+        with pytest.raises(ToolError, match="403"):
+            drive.link_customer_folder(url)
+        roots.assert_not_called()

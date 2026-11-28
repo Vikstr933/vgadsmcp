@@ -71,12 +71,13 @@ def metadata(client, file_id):
 
 
 def link_folder(owner, link):
-    root = folder_id(link)
+    root = folder_id(link.strip())
     with google_session(owner, google_grant.DRIVE_READ) as client:
         data = metadata(client, root)
     if data["mimeType"] != FOLDER:
         raise WriteBlocked("Välj en mapp i Drive.")
     folders(owner).document(root).set({"name": data["name"]})
+    return {"root_id": root, "name": data["name"]}
 
 
 def selected_folder(client, owner, root, subfolders):
@@ -84,15 +85,15 @@ def selected_folder(client, owner, root, subfolders):
         not re.fullmatch(FILE_ID, root)
         or not folders(owner).document(root).get().exists
     ):
-        raise WriteBlocked("Koppla först kundmappen från Min översikt.")
+        raise WriteBlocked(
+            "Klistra in kundens Drive-mapplänk i chatten och be Viks koppla mappen."
+        )
     current = metadata(client, root)
     for child_id in subfolders:
         child = metadata(client, child_id)
         if child["mimeType"] != FOLDER or current["id"] not in child.get(
             "parents", []
         ):
-            raise WriteBlocked(
-                "Undermappen ligger utanför den valda sökvägen."
-            )
+            raise WriteBlocked("Undermappen ligger utanför den valda sökvägen.")
         current = child
     return current

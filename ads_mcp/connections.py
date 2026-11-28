@@ -534,7 +534,7 @@ def read_card(owner, channel):
             status = status._replace(
                 content=(
                     f'<form method="post" action="/anslutningar/drive-mappar"><ul>{listed}</ul></form>'
-                    '<form method="post" action="/anslutningar/drive-mappar"><label>Kundens mapplänk <input type="url" required name="link"></label><button>Koppla mapp</button></form>'
+                    '<form method="post" action="/anslutningar/drive-mappar"><label>Kundens mapplänk (kan också skickas i Claude) <input type="url" required name="link"></label><button>Koppla mapp</button></form>'
                 )
             )
         elif channel == "drive":
