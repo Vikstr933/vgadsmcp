@@ -482,7 +482,7 @@ def channel_card(key, info, primary, secondary=""):
 async def channel_cards(user, request):
     import asyncio
 
-    google, linkedin, gtm, drive, ga4 = await asyncio.gather(
+    google, linkedin, gtm, ga4 = await asyncio.gather(
         google_details(user),
         run_in_threadpool(
             linkedin_details,
@@ -490,7 +490,6 @@ async def channel_cards(user, request):
             request.query_params.get("sida", ""),
         ),
         run_in_threadpool(gtm_card, user["owner"]),
-        run_in_threadpool(read_card, user["owner"], "drive"),
         run_in_threadpool(read_card, user["owner"], "ga4"),
     )
     google_action = "Förnya åtkomst" if google.linked else "Anslut Google Ads"
@@ -509,7 +508,6 @@ async def channel_cards(user, request):
             f'<button aria-label="{linkedin_action} – LinkedIn Ads">{linkedin_action}</button></form>',
         )
         + gtm
-        + drive
         + ga4
         + '</div><small class="channel-trademarks">Google Ads och Google Tag Manager är varumärken som tillhör Google LLC. '
         "LinkedIn är ett varumärke som tillhör LinkedIn Corporation och dess närstående bolag.</small>"
@@ -559,6 +557,9 @@ async def manage_drive_folders(request):
     user = await run_in_threadpool(session, request)
     if not user or await run_in_threadpool(member_state, user) != "active":
         return RedirectResponse(ACCOUNT, 303, headers=HEAD)
+    if request.method == "GET":
+        card = await run_in_threadpool(read_card, user["owner"], "drive")
+        return page(card, title="Drive-mappar i Viks", user=user)
     if request.headers.get("origin") != config(storage_only=True)["base_url"]:
         return page("Ogiltigt ursprung.", 403)
     form = await request.form()
@@ -580,7 +581,7 @@ async def manage_drive_folders(request):
             )
     except WriteBlocked as exc:
         return page(html.escape(str(exc)), 400, user=user)
-    return RedirectResponse(ACCOUNT, 303, headers=HEAD)
+    return RedirectResponse(HOME + "/drive-mappar", 303, headers=HEAD)
 
 
 def gtm_card(owner):
@@ -656,7 +657,7 @@ def register_dashboard(mcp):
     mcp.custom_route("/logga-ut", methods=["POST"])(logout)
     mcp.custom_route(ACTIVITY_PATH, methods=["GET"])(activity_page)
     mcp.custom_route(HOME, methods=["GET", "POST"])(dashboard)
-    mcp.custom_route(HOME + "/drive-mappar", methods=["POST"])(
+    mcp.custom_route(HOME + "/drive-mappar", methods=["GET", "POST"])(
         manage_drive_folders
     )
     mcp.custom_route(HOME + "/google", methods=["GET"])(google_start)

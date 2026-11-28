@@ -37,7 +37,7 @@ section { border:1px solid var(--line); border-radius:1rem; padding:1.4rem; marg
 .product-icon img { display:block; object-fit:contain; }
 .channel-trademarks { display:block; color:var(--muted); font-size:.75rem; margin-top:.75rem; }
 .grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1rem; }
-.admin-grid,.channels-grid { grid-template-columns:repeat(3,minmax(0,1fr)); }
+.admin-grid { grid-template-columns:repeat(3,minmax(0,1fr)); }
 .grid section { margin:0; }
 .channel-card { display:flex; flex-direction:column; gap:.9rem; min-width:0; padding:1.25rem; }
 .channel-card__heading { display:grid; gap:.75rem; justify-items:start; }
@@ -146,7 +146,8 @@ async def homepage(request):
         + '</div><div class="hero-channels">'
         + "".join(
             f"<div><strong>{title}</strong></div>"
-            for title, _, _ in PRODUCTS.values()
+            for key, (title, _, _) in PRODUCTS.items()
+            if key != "drive"
         )
         + '</div></section><section class="getting-started"><h2>Så kommer du igång</h2>'
         '<ol class="grid admin-grid"><li><strong>Logga in med Google</strong><p>Skapa eller öppna ditt kostnadsfria Viks-konto.</p></li>'
@@ -169,7 +170,7 @@ def register_public_site_routes(mcp):
             )
             body = body.replace(
                 "</article>",
-                "<h2>Google Drive och Google Analytics 4</h2><p>Varje anslutning har separat läsåtkomst som sparas krypterat för medlemmen. För Drive ber Google om läsåtkomst till dina filer. Du kan koppla en kundmapp genom att klistra in mapplänken i Claude eller på Min översikt. Mapp-ID och namn sparas. Filuppgifter och begärda bildförhandsvisningar från dessa mappar, samt begärda GA4-rapporter, skickas till medlemmens AI-klient. Du kan ta bort en mapp i Min översikt och återkalla åtkomsten i Google.</p><h2>Viks-medlemskap</h2><p>När du registrerar dig sparar vi din verifierade Google-identitet, krypterad e-postadress och din åtkomststatus. Administratörerna granskar ansökningar från externa användare. Medlemskapet är kostnadsfritt. När du ansluter Google Ads separat sparas dina åtkomstuppgifter krypterat för att kunna hämta och förnya åtkomsten. För att avsluta medlemskapet eller begära radering, använd kontaktadressen ovan.</p></article>",
+                "<h2>Google Drive och Google Analytics 4</h2><p>Varje anslutning har separat läsåtkomst som sparas krypterat för medlemmen. För Drive ber Google om läsåtkomst till dina filer. Den separata Drive-anslutningen i Viks har en egen sida för mapphantering. Mapp-ID och namn sparas. Filuppgifter och begärda bildförhandsvisningar från dessa mappar, samt begärda GA4-rapporter, skickas till medlemmens AI-klient. Du kan ta bort en mapp på <a href='/anslutningar/drive-mappar'>Drive-mappar i Viks</a> och återkalla åtkomsten i Google.</p><h2>Viks-medlemskap</h2><p>När du registrerar dig sparar vi din verifierade Google-identitet, krypterad e-postadress och din åtkomststatus. Administratörerna granskar ansökningar från externa användare. Medlemskapet är kostnadsfritt. När du ansluter Google Ads separat sparas dina åtkomstuppgifter krypterat för att kunna hämta och förnya åtkomsten. För att avsluta medlemskapet eller begära radering, använd kontaktadressen ovan.</p></article>",
             )
             body = body.replace(
                 "</article>",

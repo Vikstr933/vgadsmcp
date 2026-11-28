@@ -32,6 +32,14 @@ _CLIENT_SECRET = os.environ.get("GOOGLE_ADS_MCP_OAUTH_CLIENT_SECRET")
 _BASE_URL = os.environ.get("GOOGLE_ADS_MCP_BASE_URL", "http://localhost:8080")
 _JWT_SIGNING_KEY = os.environ.get("GOOGLE_ADS_MCP_JWT_SIGNING_KEY")
 
+DRIVE_INSTRUCTIONS = (
+    "For images from Google Drive in Claude, prefer the user's existing Google Drive connector. "
+    "If it provides the actual image or a file download, use Claude's native file tools to present "
+    "a preview of those exact pixels in the conversation. If it only returns links or extracted "
+    "text, explain that and invite the user to attach the image. Do not change sharing settings. "
+    "Use Viks drive_* tools only when the user specifically wants the separate Viks Drive connection."
+)
+
 if _CLIENT_ID and _CLIENT_SECRET:
     client_storage = create_client_storage()
     provider_kwargs: dict[str, Any] = {
@@ -52,10 +60,12 @@ if _CLIENT_ID and _CLIENT_SECRET:
     auth = GoogleProvider(**provider_kwargs)
     from ads_mcp.membership import MemberGate
 
-    mcp = FastMCP("Google Ads Server", auth=auth)
+    mcp = FastMCP(
+        "Google Ads Server", auth=auth, instructions=DRIVE_INSTRUCTIONS
+    )
     mcp.add_middleware(MemberGate())
 else:
-    mcp = FastMCP("Google Ads Server")
+    mcp = FastMCP("Google Ads Server", instructions=DRIVE_INSTRUCTIONS)
 
 
 def ensure_subscriptions_listen(server: FastMCP) -> bool:

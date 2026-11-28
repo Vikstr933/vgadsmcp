@@ -214,7 +214,11 @@ async def check_connections(
         "gtm": (gtm_check, owner, gtm_account_id, gtm_container_id),
         "linkedin": (linkedin_check, owner, linkedin_account_id),
     }
-    selected = checks if product == "all" else {product: checks[product]}
+    selected = (
+        {key: check for key, check in checks.items() if key != "drive"}
+        if product == "all"
+        else {product: checks[product]}
+    )
     results = await asyncio.gather(
         *(run_in_threadpool(*check) for check in selected.values())
     )

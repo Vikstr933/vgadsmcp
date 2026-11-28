@@ -166,7 +166,8 @@ def test_existing_callbacks_and_browser_binding():
         dashboard = client.get(hub.HOME)
         assert all(x in dashboard.text for x in ("123", "456", "v@example.com"))
         assert dashboard.text.count("<summary>Visa konton</summary>") == 2
-        assert dashboard.text.count('class="channel-card__primary"') == 5
+        assert dashboard.text.count('class="channel-card__primary"') == 4
+        assert 'id="drive-konton"' not in dashboard.text
         assert all(
             f"/icons/{filename}" in dashboard.text
             for filename in (
