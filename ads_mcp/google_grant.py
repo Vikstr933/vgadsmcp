@@ -52,11 +52,27 @@ def save(owner, response, scope=ADS):
     )
 
 
-def credentials(owner, scope=ADS):
+def disconnect(owner, scopes):
+    from ads_mcp.linkedin_auth import connection_store
+
+    batch = connection_store().client.batch()
+    for scope in scopes:
+        ref = grant_ref(owner, scope)
+        if scope == ADS:
+            # Older MCP sessions can carry their own Ads token.
+            batch.set(ref, {"disconnected": True})
+        else:
+            batch.delete(ref)
+    batch.commit()
+
+
+def credentials(owner, scope=ADS, *, legacy_token=None):
     from ads_mcp.connections import crypto
 
     record = grant_ref(owner, scope).get().to_dict()
-    if not record:
+    if not record and legacy_token and scope == ADS:
+        return Credentials(token=legacy_token)
+    if not record or record.get("disconnected"):
         raise WriteBlocked(
             f"Anslut {SERVICES[scope][0]} på https://app.viksannonsverktyg.se/mitt-konto."
         )

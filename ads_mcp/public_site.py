@@ -53,11 +53,11 @@ section { border:1px solid var(--line); border-radius:1rem; padding:1.4rem; marg
 .channel-card__primary { margin-top:auto; }
 .channel-card__primary :is(.btn,button) { display:block; width:100%; min-height:2.8rem; text-align:center; }
 .channel-card__secondary { min-height:1.4rem; font-size:.9rem; text-align:center; }
-@supports (grid-template-rows: subgrid) {
-  @media (min-width: 841px) {
-    .channel-card { display:grid; grid-row:span 4; grid-template-rows:subgrid; }
-    .channel-card__primary { margin-top:0; }
-  }
+.channels-grid { align-items:start; }
+.channel-card__primary .disconnect { color:var(--accent); background:white; border:1px solid #8ba99b; }
+.channel-card__primary .disconnect:hover { background:#eff6f1; }
+@media (min-width:841px) {
+  .channel-card__body { min-height:3.8rem; }
 }
 @media (max-width: 840px) {
   .channels-grid { grid-template-columns:1fr; }

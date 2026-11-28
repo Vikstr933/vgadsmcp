@@ -71,16 +71,16 @@ def prevent_stdio_inheritance():
 def _create_credentials() -> google.auth.credentials.Credentials:
     """Returns Application Default Credentials with the Google Ads scope, or the FastMCP token if found."""
     from fastmcp.server.dependencies import get_access_token
-    from google.oauth2.credentials import Credentials
 
     token_obj = get_access_token()
     if token_obj and token_obj.token:
-        # Create credentials using the access token provided by FastMCP
-        if _ADS_SCOPE in token_obj.scopes:
-            return Credentials(token=token_obj.token)
         from ads_mcp.google_grant import credentials
         from ads_mcp.write_policy import principal
-        return credentials(principal())
+
+        legacy_token = (
+            token_obj.token if _ADS_SCOPE in token_obj.scopes else None
+        )
+        return credentials(principal(), legacy_token=legacy_token)
 
     with prevent_stdio_inheritance():
         credentials, _ = google.auth.default(scopes=[_ADS_SCOPE])

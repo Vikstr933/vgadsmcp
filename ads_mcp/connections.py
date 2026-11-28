@@ -13,7 +13,6 @@ from urllib.parse import urlencode
 import httpx
 from cryptography.fernet import Fernet, InvalidToken
 from google.ads.googleads.client import GoogleAdsClient
-from google.oauth2.credentials import Credentials
 from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, RedirectResponse
@@ -243,7 +242,6 @@ async def google_callback(request):
                 "Välj samma Google-konto som du använder för ditt medlemskap."
             )
         state = await run_in_threadpool(member_state, identity, signup=True)
-        ids = None
         if bound and state == "active":
             if channel in ("gtm", "gtm_edit", "drive", "ga4"):
                 await run_in_threadpool(
@@ -256,26 +254,7 @@ async def google_callback(request):
                 await run_in_threadpool(
                     google_grant.save, owner, exchange.json()
                 )
-        if bound and state == "active" and channel == "google":
-            try:
-                ids = await run_in_threadpool(
-                    google_accounts, Credentials(token=token)
-                )
-            except Exception:
-                pass
-        if (
-            channel in ("gtm", "gtm_edit", "drive", "ga4")
-            and bound
-            and state == "active"
-        ):
-            previous = await run_in_threadpool(session, request)
-            if previous and previous.get("owner") == owner:
-                ids = previous.get("accounts")
-        snapshot = (
-            crypto()
-            .encrypt(json.dumps({**identity, "accounts": ids}).encode())
-            .decode()
-        )
+        snapshot = crypto().encrypt(json.dumps(identity).encode()).decode()
         sid = await run_in_threadpool(
             lambda: connection_store().issue(
                 "dashboard", {"snapshot": snapshot}
@@ -439,25 +418,23 @@ async def dashboard(request):
 
 
 async def google_details(user):
-    ids = user.get("accounts")
-    if ids is None:
-        try:
-            credentials = await run_in_threadpool(
-                google_grant.credentials, user["owner"]
-            )
-        except WriteBlocked:
-            return ChannelDetails("Ej anslutet", "neutral", False)
-        except Exception:
-            return ChannelDetails("Status kunde inte hämtas", "warning", False)
-        try:
-            ids = await run_in_threadpool(google_accounts, credentials)
-        except Exception:
-            return ChannelDetails(
-                "Åtkomst sparad",
-                "warning",
-                True,
-                "<p>Kontolistan kunde inte hämtas.</p>",
-            )
+    try:
+        credentials = await run_in_threadpool(
+            google_grant.credentials, user["owner"]
+        )
+    except WriteBlocked:
+        return ChannelDetails("Ej anslutet", "neutral", False)
+    except Exception:
+        return ChannelDetails("Status kunde inte hämtas", "warning", False)
+    try:
+        ids = await run_in_threadpool(google_accounts, credentials)
+    except Exception:
+        return ChannelDetails(
+            "Åtkomst sparad",
+            "warning",
+            True,
+            "<p>Kontolistan kunde inte hämtas.</p>",
+        )
     listing = (
         accounts_disclosure([html.escape(i) for i in ids])
         if ids
@@ -468,6 +445,11 @@ async def google_details(user):
 
 def channel_card(key, info, primary, secondary=""):
     title = PRODUCTS[key][0]
+    if info.linked and key in ("google", "linkedin", "gtm", "ga4"):
+        primary = (
+            f'<form method="post" action="{HOME}/{key}/koppla-bort">'
+            f'<button class="disconnect" aria-label="Koppla bort {title}">Koppla bort</button></form>'
+        )
     return (
         f'<section class="channel-card" id="{key}-konton" aria-labelledby="{key}-product">'
         '<div class="channel-card__heading">'
@@ -492,20 +474,18 @@ async def channel_cards(user, request):
         run_in_threadpool(gtm_card, user["owner"]),
         run_in_threadpool(read_card, user["owner"], "ga4"),
     )
-    google_action = "Förnya åtkomst" if google.linked else "Anslut Google Ads"
-    linkedin_action = "Förnya åtkomst" if linkedin.linked else "Anslut LinkedIn"
     return (
         '<div class="grid channels-grid">'
         + channel_card(
             "google",
             google,
-            f'<a class="btn" href="/anslutningar/google?kanal=google&amp;till=/mitt-konto" aria-label="{google_action} – Google Ads">{google_action}</a>',
+            '<a class="btn" href="/anslutningar/google?kanal=google&amp;till=/mitt-konto">Anslut Google Ads</a>',
         )
         + channel_card(
             "linkedin",
             linkedin,
             '<form method="post" action="/anslutningar">'
-            f'<button aria-label="{linkedin_action} – LinkedIn Ads">{linkedin_action}</button></form>',
+            "<button>Anslut LinkedIn</button></form>",
         )
         + gtm
         + ga4
@@ -520,7 +500,7 @@ def read_card(owner, channel):
             google_grant.grant_ref(owner, CHANNEL_SCOPES[channel]).get().exists
         )
         status = ChannelDetails(
-            "Läsåtkomst sparad" if linked else "Ej anslutet",
+            "Anslutet" if linked else "Ej anslutet",
             "good" if linked else "neutral",
             linked,
         )
@@ -596,22 +576,55 @@ def gtm_card(owner):
         status = ChannelDetails("Status kunde inte hämtas", "warning", False)
         linked = edit_linked = False
     else:
+        connected = linked or edit_linked
         status = ChannelDetails(
-            "Läsåtkomst sparad" if linked else "Ej anslutet",
-            "good" if linked else "neutral",
-            linked,
-            "<p>Utkaståtkomst sparad.</p>" if edit_linked else "",
+            "Anslutet" if connected else "Ej anslutet",
+            "good" if connected else "neutral",
+            connected,
+            "<p>Utkast aktiverade.</p>" if edit_linked else "",
         )
-    action = "Förnya läsåtkomst" if linked else "Anslut GTM"
-    edit_action = (
-        "Förnya utkaståtkomst" if edit_linked else "Aktivera GTM-utkast"
-    )
+    secondary = ""
+    if linked and not edit_linked:
+        secondary = '<a href="/anslutningar/google?kanal=gtm_edit">Aktivera GTM-utkast</a>'
+    elif edit_linked and not linked:
+        secondary = (
+            '<a href="/anslutningar/google?kanal=gtm">Aktivera läsåtkomst</a>'
+        )
     return channel_card(
         "gtm",
         status,
-        f'<a class="btn" href="/anslutningar/google?kanal=gtm">{action}</a>',
-        f'<a href="/anslutningar/google?kanal=gtm_edit">{edit_action}</a>',
+        '<a class="btn" href="/anslutningar/google?kanal=gtm">Anslut GTM</a>',
+        secondary,
     )
+
+
+async def disconnect_channel(request):
+    if request.headers.get("origin") != config(storage_only=True)["base_url"]:
+        return page("Ogiltigt ursprung.", 403)
+    channel = request.path_params["channel"]
+    if channel not in ("google", "linkedin", "ga4", "gtm"):
+        return page("Okänd produkt.", 404)
+    try:
+        user = await run_in_threadpool(session, request)
+        if not user or await run_in_threadpool(member_state, user) != "active":
+            return RedirectResponse(ACCOUNT, 303, headers=HEAD)
+        if channel == "linkedin":
+            await run_in_threadpool(
+                connection_store().disconnect, user["owner"]
+            )
+        else:
+            scopes = [CHANNEL_SCOPES[channel]]
+            if channel == "gtm":
+                scopes.append(google_grant.GTM_EDIT)
+            await run_in_threadpool(
+                google_grant.disconnect, user["owner"], scopes
+            )
+    except Exception:
+        return page(
+            '<p>Produkten kunde inte kopplas bort. Försök igen.</p><a href="/mitt-konto">Min översikt</a>',
+            503,
+        )
+    return RedirectResponse(ACCOUNT, 303, headers=HEAD)
 
 
 def claude_setup():
@@ -659,5 +672,8 @@ def register_dashboard(mcp):
     mcp.custom_route(HOME, methods=["GET", "POST"])(dashboard)
     mcp.custom_route(HOME + "/drive-mappar", methods=["GET", "POST"])(
         manage_drive_folders
+    )
+    mcp.custom_route(HOME + "/{channel}/koppla-bort", methods=["POST"])(
+        disconnect_channel
     )
     mcp.custom_route(HOME + "/google", methods=["GET"])(google_start)
